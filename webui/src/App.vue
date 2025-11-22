@@ -147,7 +147,7 @@ const updateSubscription = async (): Promise<void> => {
     }
 
     // 执行 curl 命令获取订阅内容并直接覆盖配置文件
-    const process = spawn(`curl -s -L "${subsUrl}" > "${configPath}"`)
+    const process = spawn(`curl -s -H "User-Agent: Box4Android" -L "${subsUrl}" > "${configPath}"`)
 
     process.stdout.on('data', (data: string) => {
       console.log('[更新订阅]: 有新的 stdout', data)
