@@ -20,6 +20,6 @@ while [ ! -f /data/misc/net/rt_tables ] ; do
 done
 
 net_dir="/data/misc/net"
-#Use inotifyd to monitor write events in the /data/misc/net directory for network changes, perhaps we have a better choice of files to monitor (the /proc filesystem is unsupported) and cyclic polling is a bad solution
+# 使用 inotifyd 监听 /data/misc/net 目录的写入事件以捕获网络变化，
+# 也许我们有更好的监控目标文件（/proc 文件系统不受支持），而循环轮询不是好的方案
 inotifyd ${scripts_dir}/net.inotify ${net_dir} > /dev/null 2>&1 &
-inotifyd ${scripts_dir}/ctr.inotify /data/misc/net/rt_tables &>/dev/null &
