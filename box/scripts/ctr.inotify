@@ -23,7 +23,7 @@ fi
 
 switchMode(){
 	local sta="$(status; echo $?)"
-	if [ $1 = 0 ]; then # disconnect, on CellularNetwork
+	if [ $1 = 0 ]; then # 断开连接，使用移动网络
 		if [ "${sta}" = "1" ]; then
 			start_core
 			sleep 3
@@ -31,7 +31,7 @@ switchMode(){
 			sleep 1
 			switchMode $@
 		fi
-	else # connect, on WiFi
+	else # 已连接，使用 WiFi
 		if [ "${sta}" = "0" ]; then
 			stop_core
 			sleep 3
@@ -44,7 +44,7 @@ switchMode(){
 
 selectMode(){
 	local sta="$(status; echo $?)"
-	if [ $1 = 0 ]; then # disconnect, on CellularNetwork
+	if [ $1 = 0 ]; then # 断开连接，使用移动网络
 		if [ "${sta}" = 0 ]; then
 			local target="${default_outbound}"
 			if [ -n "${Outbound}" ]; then
@@ -58,7 +58,7 @@ selectMode(){
 			sleep 1
 			selectMode $@
 		fi
-	else # connect, on WiFi
+	else # 已连接，使用 WiFi
 		if [ "${sta}" = 0 ]; then
 			local target
 			if [ "${use_custom_direct}" = "true" ]; then
@@ -78,7 +78,7 @@ selectMode(){
 
 clashMode(){
 	local sta="$(status; echo $?)"
-	if [ $1 = 0 ]; then # disconnect, on CellularNetwork
+	if [ $1 = 0 ]; then # 断开连接，使用移动网络
 		if [ "${sta}" = 0 ]; then
 			local target
 			target="${default_clash_mode}"
@@ -93,7 +93,7 @@ clashMode(){
 			sleep 1
 			clashMode $@
 		fi
-	else # connect, on WiFi
+	else # 已连接，使用 WiFi
 		if [ "${sta}" = 0 ]; then
 			local target
 			if [ "${use_custom_direct}" = "true" ]; then

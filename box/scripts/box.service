@@ -49,7 +49,7 @@ check_permission() {
     chown ${box_user_group} ${bin_path}
     chmod 0755 ${bin_path}
     if [ "${box_user_id}" != "0" ] || [ "${box_group_id}" != "3005" ] ; then
-      # setcap has been deprecated as it does not support binary outside of the /system/bin directory
+      # setcap 已被弃用，因为它不支持 /system/bin 目录之外的二进制文件
       setcap 'cap_net_admin,cap_net_raw,cap_net_bind_service,cap_sys_ptrace,cap_dac_read_search+ep' ${bin_path} || \
       (box_user_group="root:net_admin" && log Error "setcap authorization failed, you may need libcap package.")
     fi
@@ -197,7 +197,7 @@ stop_service() {
   rm -f ${pid_file} >> /dev/null 2>&1
 }
 
-# create_tun_link() {
+# 创建 TUN 链接
 #   mkdir -p /dev/net
 #   [ ! -L /dev/net/tun ] && ln -s /dev/tun /dev/net/tun
 # }
@@ -270,7 +270,7 @@ tun_forward_enable() {
   ## chcon $(stat -Z -c '%C' /data/misc/net/rt_tables) /dev/ip_forward_stub
   ## mount -o bind /dev/ip_forward_stub /proc/sys/net/ipv4/ip_forward
 
-  # create_tun_link
+  # 创建 TUN 链接
   probe_tun_index && tun_forward_ip_rules "add"
   probe_tun_device && tun_forward_iptables_rules "-I" && sing_tun_ip_rules "add" && log Info "tun hotspot support is enabled."
   return 0

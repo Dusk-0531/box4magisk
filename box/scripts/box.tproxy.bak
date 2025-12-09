@@ -65,7 +65,7 @@ start_redirect() {
     ${iptables} -t nat -A BOX_EXTERNAL -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
     ${iptables} -t nat -A BOX_LOCAL -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
 #  else
-#    Other types of inbound should be added here to receive DNS traffic instead of sniffing
+#    此处应添加其他类型的入站来接收 DNS 流量而不是嗅探
 #    ${iptables} -t nat -A BOX_EXTERNAL -p udp --dport 53 -j REDIRECT --to-ports ${redir_port}
 #    ${iptables} -t nat -A BOX_LOCAL -p udp --dport 53 -j REDIRECT --to-ports ${redir_port}
   fi
@@ -102,20 +102,20 @@ start_redirect() {
 
   if [ "${proxy_mode}" = "blacklist" ] ; then
     if [ "${uid_list}" = "" ] ; then
-      # Route Everything
+      # 代理所有流量
       ${iptables} -t nat -A BOX_LOCAL -p tcp -j REDIRECT --to-ports ${redir_port}
       log Info "transparent proxy for all apps."
     else
-      # Bypass apps
+      # 绕过指定应用
       for appid in ${uid_list[@]} ; do
         ${iptables} -t nat -A BOX_LOCAL -m owner --uid-owner ${appid} -j RETURN
       done
-      # Allow !app
+      # 允许其他应用
       ${iptables} -t nat -A BOX_LOCAL -p tcp -j REDIRECT --to-ports ${redir_port}
       log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} no transparent proxy."
     fi
     if [ "${gid_list}" != "" ] ; then
-      # Bypass gids
+      # 绕过指定 GID
       for gid in ${gid_list[@]} ; do
         ${iptables} -t nat -A BOX_LOCAL -m owner --gid-owner ${gid} -j RETURN
       done
@@ -123,7 +123,7 @@ start_redirect() {
     fi
   elif [ "${proxy_mode}" = "whitelist" ] ; then
     if [ "${uid_list}" != "" ] ; then
-      # Route apps to Box
+      # 将指定应用路由到 Box
       for appid in ${uid_list[@]} ; do
         ${iptables} -t nat -A BOX_LOCAL -p tcp -m owner --uid-owner ${appid} -j REDIRECT --to-ports ${redir_port}
       done
@@ -132,7 +132,7 @@ start_redirect() {
       log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} transparent proxy."
     fi
     if [ "${gid_list}" != "" ] ; then
-      # Route gids to Box
+      # 将指定 GID 路由到 Box
       for gid in ${gid_list[@]} ; do
         ${iptables} -t nat -A BOX_LOCAL -p tcp -m owner --gid-owner ${gid} -j REDIRECT --to-ports ${redir_port}
       done
@@ -140,7 +140,7 @@ start_redirect() {
     fi
   else
     log Warn "proxy mode: ${proxy_mode} error."
-    # Route Everything
+    # 代理所有流量
     ${iptables} -t nat -A BOX_LOCAL -p tcp -j REDIRECT --to-ports ${redir_port}
     log Info "transparent proxy for all apps."
   fi
@@ -179,17 +179,17 @@ start_tproxy() {
   ${iptables} -t mangle -N BOX_EXTERNAL
   ${iptables} -t mangle -F BOX_EXTERNAL
 
-  # Bypass box itself
+  # 绕过 Box 本身
   # ${iptables} -t mangle -A BOX_EXTERNAL -m mark --mark ${routing_mark} -j RETURN
 
-  # Bypass other if
-  # Notice: Some interface is named with r_ / oem / nm_ / qcom_
-  # It might need more complicated solution.
+  # 绕过其他接口
+  # 注意：某些接口名称以 r_ / oem / nm_ / qcom_ 开头
+  # 可能需要更复杂的解决方案
   # ${iptables} -t mangle -A BOX_EXTERNAL -i rmnet_data+ -j RETURN
   # ${iptables} -t mangle -A BOX_EXTERNAL -i ccmni+ -j RETURN
 
-  # Skip traffic already handled by TProxy
-  # If the interface of the default route has a public IPv4 or IPv6 address assigned by the ISP, omitting these rules will result in abnormal proxy behavior for local traffic, which may cause the entire network to run slower
+  # 跳过已由 TProxy 处理的流量
+  # 如果默认路由的接口被 ISP 分配了公网 IPv4 或 IPv6 地址，省略这些规则将导致本地流量代理异常，可能使整个网络变慢
   # ${iptables} -t mangle -A BOX_EXTERNAL -p tcp -m socket --transparent -j MARK --set-xmark ${mark_id}
   # ${iptables} -t mangle -A BOX_EXTERNAL -p udp -m socket --transparent -j MARK --set-xmark ${mark_id}
   # ${iptables} -t mangle -A BOX_EXTERNAL -m socket -j RETURN
@@ -198,12 +198,12 @@ start_tproxy() {
     ${iptables} -t mangle -A BOX_EXTERNAL -p tcp --dport 53 -j RETURN
     ${iptables} -t mangle -A BOX_EXTERNAL -p udp --dport 53 -j RETURN
   else
-    # Route DNS request to Box
+    # 将 DNS 请求路由到 Box
     ${iptables} -t mangle -A BOX_EXTERNAL -p tcp --dport 53 -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
     ${iptables} -t mangle -A BOX_EXTERNAL -p udp --dport 53 -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
   fi
-  # Bypass intranet
-  # Run `su -c 'zcat /proc/config.gz | grep -i addrtype'` to check compatibility
+  # 绕过内网地址
+  # 运行 `su -c 'zcat /proc/config.gz | grep -i addrtype'` 检查兼容性
   # ${iptables} -t mangle -A BOX_EXTERNAL -m addrtype --dst-type LOCAL -j RETURN
   if [ "${iptables}" = "ip6tables -w 100" ] ; then
     for subnet6 in ${intranet6[@]} ; do
@@ -224,9 +224,9 @@ start_tproxy() {
   ${iptables} -t mangle -A BOX_EXTERNAL -p tcp -i lo -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
   ${iptables} -t mangle -A BOX_EXTERNAL -p udp -i lo -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
 
-  # Allow ap interface
-  # Notice: Old android device may only have one wlan interface.
-  # Some new android device have multiple wlan interface like wlan0(for internet), wlan1(for AP).
+  # 允许 AP 接口
+  # 注意：旧版 Android 设备可能只有一个 wlan 接口
+  # 一些新版 Android 设备有多个 wlan 接口，如 wlan0（用于上网）、wlan1（用于热点）
   if [ "${ap_list}" != "" ] ; then
     for ap in ${ap_list[@]} ; do
       ${iptables} -t mangle -A BOX_EXTERNAL -p tcp -i ${ap} -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
@@ -241,11 +241,11 @@ start_tproxy() {
   ${iptables} -t mangle -N BOX_LOCAL
   ${iptables} -t mangle -F BOX_LOCAL
 
-  # Bypass box itself
+  # 绕过 Box 本身
   ${iptables} -t mangle -A BOX_LOCAL -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j RETURN
   # ${iptables} -t mangle -A BOX_LOCAL -m mark --mark ${routing_mark} -j RETURN
 
-  # Bypass ignored interfaces
+  # 绕过忽略的接口
   if [ "${ignore_out_list}" != "" ] ; then
     for ignore in ${ignore_out_list[@]} ; do
       ${iptables} -t mangle -A BOX_LOCAL -o ${ignore} -j RETURN
@@ -257,11 +257,11 @@ start_tproxy() {
     ${iptables} -t mangle -A BOX_LOCAL -p tcp --dport 53 -j RETURN
     ${iptables} -t mangle -A BOX_LOCAL -p udp --dport 53 -j RETURN
   else
-    # Route DNS request to Box
+    # 将 DNS 请求路由到 Box
     ${iptables} -t mangle -A BOX_LOCAL -p tcp --dport 53 -j MARK --set-xmark ${mark_id}
     ${iptables} -t mangle -A BOX_LOCAL -p udp --dport 53 -j MARK --set-xmark ${mark_id}
   fi
-  # Bypass intranet
+  # 绕过内网地址
   # ${iptables} -t mangle -A BOX_LOCAL -m addrtype --dst-type LOCAL -j RETURN
   if [ "${iptables}" = "ip6tables -w 100" ] ; then
     for subnet6 in ${intranet6[@]} ; do
@@ -275,27 +275,27 @@ start_tproxy() {
     ${iptables} -t mangle -A BOX_LOCAL -j LOCAL_IP_V4
   fi
 
-  # Disable kernel
+  # 禁用内核
   # ${iptables} -t mangle -A BOX_LOCAL -m owner ! --uid 0-99999999 -j DROP
 
   if [ "${proxy_mode}" = "blacklist" ] ; then
     if [ "${uid_list}" = "" ] ; then
-      # Route Everything
+      # 代理所有流量
       ${iptables} -t mangle -A BOX_LOCAL -p tcp -j MARK --set-xmark ${mark_id}
       ${iptables} -t mangle -A BOX_LOCAL -p udp -j MARK --set-xmark ${mark_id}
       log Info "transparent proxy for all apps."
     else
-      # Bypass apps
+      # 绕过指定应用
       for appid in ${uid_list[@]} ; do
         ${iptables} -t mangle -A BOX_LOCAL -m owner --uid-owner ${appid} -j RETURN
       done
-      # Allow !app
+      # 允许其他应用
       ${iptables} -t mangle -A BOX_LOCAL -p tcp -j MARK --set-xmark ${mark_id}
       ${iptables} -t mangle -A BOX_LOCAL -p udp -j MARK --set-xmark ${mark_id}
       log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} no transparent proxy."
     fi
     if [ "${gid_list}" != "" ] ; then
-      # Bypass gids
+      # 绕过指定 GID
       for gid in ${gid_list[@]} ; do
         ${iptables} -t mangle -A BOX_LOCAL -m owner --gid-owner ${gid} -j RETURN
       done
@@ -303,20 +303,20 @@ start_tproxy() {
     fi
   elif [ "${proxy_mode}" = "whitelist" ] ; then
     if [ "${uid_list}" != "" ] ; then
-      # Route apps to Box
+      # 将指定应用路由到 Box
       for appid in ${uid_list[@]} ; do
         ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --uid-owner ${appid} -j MARK --set-xmark ${mark_id}
         ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --uid-owner ${appid} -j MARK --set-xmark ${mark_id}
       done
       ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --uid-owner 0 -j MARK --set-xmark ${mark_id}
       ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --uid-owner 0 -j MARK --set-xmark ${mark_id}
-      # Route dnsmasq to Box
+      # 将 dnsmasq 路由到 Box
       ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --uid-owner 1052 -j MARK --set-xmark ${mark_id}
       ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --uid-owner 1052 -j MARK --set-xmark ${mark_id}
       log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} transparent proxy."
     fi
     if [ "${gid_list}" != "" ] ; then
-      # Route gids to Box
+      # 将指定 GID 路由到 Box
       for gid in ${gid_list[@]} ; do
         ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --gid-owner ${gid} -j MARK --set-xmark ${mark_id}
         ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --gid-owner ${gid} -j MARK --set-xmark ${mark_id}
@@ -325,7 +325,7 @@ start_tproxy() {
     fi
   else
     log Warn "proxy mode: ${proxy_mode} error."
-    # Route Everything
+    # 代理所有流量
     ${iptables} -t mangle -A BOX_LOCAL -p tcp -j MARK --set-xmark ${mark_id}
     ${iptables} -t mangle -A BOX_LOCAL -p udp -j MARK --set-xmark ${mark_id}
     log Info "transparent proxy for all apps."
@@ -343,7 +343,7 @@ start_tproxy() {
   ${iptables} -t mangle -I PREROUTING -p tcp -m socket -j DIVERT
 
 
-  # This rule blocks local access to tproxy-port to prevent traffic loopback.
+  # 此规则阻止本地访问 tproxy 端口，防止流量回环
   if [ "${iptables}" = "ip6tables -w 100" ] ; then
     ${iptables} -A OUTPUT -d ::1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${tproxy_port} -j REJECT
   else
@@ -353,7 +353,7 @@ start_tproxy() {
 
   if [ "${mihome_dns_forward}" = "true" ] && [ "${bin_name}" = "mihomo" ] || [ "${bin_name}" = "clash" ] ; then
     if [ "${iptables}" = "iptables -w 100" ] ; then
-      # android ip6tablses no nat table
+      # android ip6tables 没有 nat 表
       ${iptables} -t nat -N CLASH_DNS_EXTERNAL
       ${iptables} -t nat -F CLASH_DNS_EXTERNAL
 
@@ -373,8 +373,8 @@ start_tproxy() {
     fi
   fi
 
-  # Fix ICMP (ping), this does not guarantee that the ping result is valid (proxies such as clash do not support forwarding ICMP),
-  # just that it returns a result, "--to-destination" can be set to a reachable address
+  # 修复 ICMP (ping)，这不保证 ping 结果有效（clash 等代理不支持转发 ICMP），
+  # 只是返回一个结果，"--to-destination" 可以设置为一个可达地址
   iptables -w 100 -t nat -A OUTPUT -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
   iptables -w 100 -t nat -A PREROUTING -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
   # ip6tables -w 100 -t nat -A OUTPUT -d ${fake_ip_range_v6} -p icmp -j DNAT --to-destination ::1
@@ -416,7 +416,7 @@ stop_tproxy() {
   fi
 
 
-  # android ip6tablses no nat table
+  # android ip6tables 没有 nat 表
   iptables="iptables -w 100"
   ${iptables} -t nat -D PREROUTING -j CLASH_DNS_EXTERNAL
 

@@ -10,7 +10,7 @@ scripts_dir=$(dirname ${scripts})
 source ${scripts_dir}/box.config
 
 wait_until_login(){
-  # we doesn't have the permission to rw "/sdcard" before the user unlocks the screen
+  # 用户解锁屏幕之前我们没有对 "/sdcard" 的读写权限
   local test_file="/sdcard/Android/.BOX4TEST"
   true > "$test_file"
   while [ ! -f "$test_file" ] ; do
