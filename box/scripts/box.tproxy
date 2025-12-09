@@ -1,36 +1,36 @@
 #!/system/bin/sh
 
-# 配置（可按需修改）
+# Configuration (modify as needed)
 
-# 代理核心配置
-# 代理运行的用户和组
+# Proxy core configuration
+# Proxy running user and group
 readonly DEFAULT_CORE_USER_GROUP="root:net_admin"
-# 代理流量标记
+# Proxy traffic mark
 readonly DEFAULT_ROUTING_MARK=""
-# 代理端口（透明代理监听端口）
+# Proxy ports (transparent proxy listening ports)
 readonly DEFAULT_PROXY_TCP_PORT="1536"
 readonly DEFAULT_PROXY_UDP_PORT="1536"
 
-# 代理模式：0=自动（检测 TPROXY 支持），1=强制 TPROXY，2=强制 REDIRECT
+# Proxy mode: 0=auto (check TPROXY support), 1=force TPROXY, 2=force REDIRECT
 readonly DEFAULT_PROXY_MODE=0
 
-# DNS 配置
-# DNS 劫持方式（0：禁用，1：tproxy，2：redirect）
+# DNS configuration
+# DNS hijack method (0: disabled, 1: tproxy, 2: redirect)
 readonly DEFAULT_DNS_HIJACK_ENABLE=1
-# DNS 监听端口
+# DNS listening port
 readonly DEFAULT_DNS_PORT="1053"
 
-# 网口定义
-# 移动数据接口
+# Interface definitions
+# Mobile data interface
 readonly DEFAULT_MOBILE_INTERFACE="rmnet_data+"
-# WiFi 接口
+# WiFi interface
 readonly DEFAULT_WIFI_INTERFACE="wlan0"
-# 热点接口
+# Hotspot interface
 readonly DEFAULT_HOTSPOT_INTERFACE="wlan2"
-# USB 共享网接口
+# USB tethering interface
 readonly DEFAULT_USB_INTERFACE="rndis+"
 
-# 代理开关
+# Proxy switches
 readonly DEFAULT_PROXY_MOBILE=1
 readonly DEFAULT_PROXY_WIFI=1
 readonly DEFAULT_PROXY_HOTSPOT=0
@@ -39,44 +39,44 @@ readonly DEFAULT_PROXY_TCP=1
 readonly DEFAULT_PROXY_UDP=1
 readonly DEFAULT_PROXY_IPV6=1
 
-# 标记值
+# Mark values
 readonly DEFAULT_MARK_VALUE=20
 readonly DEFAULT_MARK_VALUE6=25
 
-# 路由表 ID
+# Routing table ID
 readonly DEFAULT_TABLE_ID=2025
 
-# 分应用代理（用空格分隔包名，支持 user:package 格式）
+# Per-app proxy (use space to separate package names, supports user:package format)
 readonly DEFAULT_APP_PROXY_ENABLE=0
 readonly DEFAULT_PROXY_APPS_LIST=""
-# 例： "com.example.app com.other"
+# Example: "com.example.app com.other"
 readonly DEFAULT_BYPASS_APPS_LIST=""
-# 例： "com.android.shell"
+# Example: "com.android.shell"
 readonly DEFAULT_APP_PROXY_MODE="blacklist"
-# "blacklist" 或 "whitelist"
+# "blacklist" or "whitelist"
 
-# 中国大陆 IP 旁路配置
+# CN IP bypass configuration
 readonly DEFAULT_BYPASS_CN_IP=1
-# 中国大陆 IP 列表文件路径
+# CN IP list file paths
 _SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 readonly DEFAULT_SCRIPT_DIR="$_SCRIPT_DIR"
 readonly DEFAULT_CN_IP_FILE="${DEFAULT_SCRIPT_DIR}/cn.zone"
 readonly DEFAULT_CN_IPV6_FILE="${DEFAULT_SCRIPT_DIR}/cn_ipv6.zone"
-# 中国大陆 IP 源地址
+# CN IP source URLs
 readonly DEFAULT_CN_IP_URL="https://raw.githubusercontent.com/Hackl0us/GeoIP2-CN/release/CN-ip-cidr.txt"
 readonly DEFAULT_CN_IPV6_URL="https://ispip.clang.cn/all_cn_ipv6.txt"
 
-# MAC 地址黑/白名单配置（热点模式）
+# MAC address blacklist/whitelist configuration (hotspot mode)
 readonly DEFAULT_MAC_FILTER_ENABLE=0
-# MAC 地址黑/白名单（用空格分隔 MAC 地址）
+# MAC address blacklist/whitelist (use space to separate MAC addresses)
 readonly DEFAULT_PROXY_MACS_LIST=""
-# 例： "AA:BB:CC:DD:EE:FF 11:22:33:44:55:66"
+# Example: "AA:BB:CC:DD:EE:FF 11:22:33:44:55:66"
 readonly DEFAULT_BYPASS_MACS_LIST=""
-# 例： "FF:EE:DD:CC:BB:AA"
+# Example: "FF:EE:DD:CC:BB:AA"
 readonly DEFAULT_MAC_PROXY_MODE="blacklist"
-# "blacklist" 或 "whitelist"
+# "blacklist" or "whitelist"
 
-# 演练模式（默认关闭）
+# Dry-run mode (disabled by default)
 readonly DEFAULT_DRY_RUN=0
 
 log() {
@@ -106,13 +106,13 @@ log() {
 }
 
 load_config() {
-    log Info "从环境变量或默认值加载配置..."
+    log Info "Loading configuration from environment or defaults..."
 
-    # 演练模式（默认关闭）
+    # Dry-run mode (disabled by default)
     DRY_RUN="${DRY_RUN:-$DEFAULT_DRY_RUN}"
     log Info "DRY_RUN: $DRY_RUN"
 
-    # 代理核心配置
+    # Proxy core configuration
     CORE_USER_GROUP="${CORE_USER_GROUP:-$DEFAULT_CORE_USER_GROUP}"
     log Info "CORE_USER_GROUP: $CORE_USER_GROUP"
 
@@ -125,18 +125,18 @@ load_config() {
     PROXY_UDP_PORT="${PROXY_UDP_PORT:-$DEFAULT_PROXY_UDP_PORT}"
     log Info "PROXY_UDP_PORT: $PROXY_UDP_PORT"
 
-    # 代理模式：0=自动，1=强制 TPROXY，2=强制 REDIRECT
+    # Proxy mode: 0=auto, 1=force TPROXY, 2=force REDIRECT
     PROXY_MODE="${PROXY_MODE:-$DEFAULT_PROXY_MODE}"
     log Info "PROXY_MODE: $PROXY_MODE"
 
-    # DNS 配置
+    # DNS configuration
     DNS_HIJACK_ENABLE="${DNS_HIJACK_ENABLE:-$DEFAULT_DNS_HIJACK_ENABLE}"
     log Info "DNS_HIJACK_ENABLE: $DNS_HIJACK_ENABLE"
 
     DNS_PORT="${DNS_PORT:-$DEFAULT_DNS_PORT}"
     log Info "DNS_PORT: $DNS_PORT"
 
-    # 网口定义
+    # Interface definitions
     MOBILE_INTERFACE="${MOBILE_INTERFACE:-$DEFAULT_MOBILE_INTERFACE}"
     log Info "MOBILE_INTERFACE: $MOBILE_INTERFACE"
 
@@ -149,7 +149,7 @@ load_config() {
     USB_INTERFACE="${USB_INTERFACE:-$DEFAULT_USB_INTERFACE}"
     log Info "USB_INTERFACE: $USB_INTERFACE"
 
-    # 代理开关
+    # Proxy switches
     PROXY_MOBILE="${PROXY_MOBILE:-$DEFAULT_PROXY_MOBILE}"
     log Info "PROXY_MOBILE: $PROXY_MOBILE"
 
@@ -171,18 +171,18 @@ load_config() {
     PROXY_IPV6="${PROXY_IPV6:-$DEFAULT_PROXY_IPV6}"
     log Info "PROXY_IPV6: $PROXY_IPV6"
 
-    # 标记值
+    # Mark values
     MARK_VALUE="${MARK_VALUE:-$DEFAULT_MARK_VALUE}"
     log Info "MARK_VALUE: $MARK_VALUE"
 
     MARK_VALUE6="${MARK_VALUE6:-$DEFAULT_MARK_VALUE6}"
     log Info "MARK_VALUE6: $MARK_VALUE6"
 
-    # 路由表 ID
+    # Routing table ID
     TABLE_ID="${TABLE_ID:-$DEFAULT_TABLE_ID}"
     log Info "TABLE_ID: $TABLE_ID"
 
-    # 分应用代理
+    # Per-app proxy
     APP_PROXY_ENABLE="${APP_PROXY_ENABLE:-$DEFAULT_APP_PROXY_ENABLE}"
     log Info "APP_PROXY_ENABLE: $APP_PROXY_ENABLE"
 
@@ -195,7 +195,7 @@ load_config() {
     APP_PROXY_MODE="${APP_PROXY_MODE:-$DEFAULT_APP_PROXY_MODE}"
     log Info "APP_PROXY_MODE: $APP_PROXY_MODE"
 
-    # 中国大陆 IP 旁路
+    # CN IP bypass
     BYPASS_CN_IP="${BYPASS_CN_IP:-$DEFAULT_BYPASS_CN_IP}"
     log Info "BYPASS_CN_IP: $BYPASS_CN_IP"
 
@@ -211,7 +211,7 @@ load_config() {
     CN_IPV6_URL="${CN_IPV6_URL:-$DEFAULT_CN_IPV6_URL}"
     log Info "CN_IPV6_URL: $CN_IPV6_URL"
 
-    # MAC 地址过滤
+    # MAC address filtering
     MAC_FILTER_ENABLE="${MAC_FILTER_ENABLE:-$DEFAULT_MAC_FILTER_ENABLE}"
     log Info "MAC_FILTER_ENABLE: $MAC_FILTER_ENABLE"
 
@@ -224,49 +224,49 @@ load_config() {
     MAC_PROXY_MODE="${MAC_PROXY_MODE:-$DEFAULT_MAC_PROXY_MODE}"
     log Info "MAC_PROXY_MODE: $MAC_PROXY_MODE"
 
-    log Info "配置加载完成"
+    log Info "Configuration loading completed"
 }
 
 validate_config() {
-    log Debug "正在校验配置..."
+    log Debug "Validating configuration..."
 
     if ! echo "$PROXY_TCP_PORT" | grep -E '^[0-9]+$' > /dev/null || [ "$PROXY_TCP_PORT" -lt 1 ] || [ "$PROXY_TCP_PORT" -gt 65535 ]; then
-        log Error "无效的 PROXY_TCP_PORT: $PROXY_TCP_PORT"
+        log Error "Invalid PROXY_TCP_PORT: $PROXY_TCP_PORT"
         return 1
     fi
 
     if ! echo "$PROXY_UDP_PORT" | grep -E '^[0-9]+$' > /dev/null || [ "$PROXY_UDP_PORT" -lt 1 ] || [ "$PROXY_UDP_PORT" -gt 65535 ]; then
-        log Error "无效的 PROXY_UDP_PORT: $PROXY_UDP_PORT"
+        log Error "Invalid PROXY_UDP_PORT: $PROXY_UDP_PORT"
         return 1
     fi
 
     if ! echo "$PROXY_MODE" | grep -E '^[0-2]$' > /dev/null; then
-        log Error "无效的 PROXY_MODE: $PROXY_MODE（必须是 0=auto，1=force TPROXY，2=force REDIRECT）"
+        log Error "Invalid PROXY_MODE: $PROXY_MODE (must be 0=auto, 1=force TPROXY, 2=force REDIRECT)"
         return 1
     fi
 
     if ! echo "$DNS_HIJACK_ENABLE" | grep -E '^[0-2]$' > /dev/null; then
-        log Error "无效的 DNS_HIJACK_ENABLE: $DNS_HIJACK_ENABLE（必须是 0=disabled，1=tproxy，2=redirect）"
+        log Error "Invalid DNS_HIJACK_ENABLE: $DNS_HIJACK_ENABLE (must be 0=disabled, 1=tproxy, 2=redirect)"
         return 1
     fi
 
     if ! echo "$DNS_PORT" | grep -E '^[0-9]+$' > /dev/null || [ "$DNS_PORT" -lt 1 ] || [ "$DNS_PORT" -gt 65535 ]; then
-        log Error "无效的 DNS_PORT: $DNS_PORT"
+        log Error "Invalid DNS_PORT: $DNS_PORT"
         return 1
     fi
 
     if ! echo "$MARK_VALUE" | grep -E '^[0-9]+$' > /dev/null || [ "$MARK_VALUE" -lt 1 ] || [ "$MARK_VALUE" -gt 2147483647 ]; then
-        log Error "无效的 MARK_VALUE: $MARK_VALUE"
+        log Error "Invalid MARK_VALUE: $MARK_VALUE"
         return 1
     fi
 
     if ! echo "$MARK_VALUE6" | grep -E '^[0-9]+$' > /dev/null || [ "$MARK_VALUE6" -lt 1 ] || [ "$MARK_VALUE6" -gt 2147483647 ]; then
-        log Error "无效的 MARK_VALUE6: $MARK_VALUE6"
+        log Error "Invalid MARK_VALUE6: $MARK_VALUE6"
         return 1
     fi
 
     if ! echo "$TABLE_ID" | grep -E '^[0-9]+$' > /dev/null || [ "$TABLE_ID" -lt 1 ] || [ "$TABLE_ID" -gt 65535 ]; then
-        log Error "无效的 TABLE_ID: $TABLE_ID"
+        log Error "Invalid TABLE_ID: $TABLE_ID"
         return 1
     fi
 
@@ -274,27 +274,27 @@ validate_config() {
         *:*)
             CORE_USER=$(echo "$CORE_USER_GROUP" | cut -d: -f1)
             CORE_GROUP=$(echo "$CORE_USER_GROUP" | cut -d: -f2)
-            log Debug "解析得到 user:group 为 '$CORE_USER:$CORE_GROUP'"
+            log Debug "Parsed user:group as '$CORE_USER:$CORE_GROUP'"
             ;;
         *)
             CORE_USER="root"
             CORE_GROUP="net_admin"
-            log Debug "使用默认 user:group '$CORE_USER:$CORE_GROUP'"
+            log Debug "Using default user:group '$CORE_USER:$CORE_GROUP'"
             ;;
     esac
 
     if [ -z "$CORE_USER" ] || [ -z "$CORE_GROUP" ]; then
-        log Warn "检测到空的用户或组，使用默认值"
+        log Warn "Empty user or group detected, using defaults"
         CORE_USER="root"
         CORE_GROUP="net_admin"
     fi
 
-    log Info "最终的 user:group 配置：'$CORE_USER:$CORE_GROUP'"
+    log Info "Final user:group configuration: '$CORE_USER:$CORE_GROUP'"
 
     case "$APP_PROXY_MODE" in
         blacklist | whitelist) ;;
         *)
-            log Error "无效的 APP_PROXY_MODE: $APP_PROXY_MODE"
+            log Error "Invalid APP_PROXY_MODE: $APP_PROXY_MODE"
             return 1
             ;;
     esac
@@ -302,29 +302,29 @@ validate_config() {
     case "$MAC_PROXY_MODE" in
         blacklist | whitelist) ;;
         *)
-            log Error "无效的 MAC_PROXY_MODE: $MAC_PROXY_MODE"
+            log Error "Invalid MAC_PROXY_MODE: $MAC_PROXY_MODE"
             return 1
             ;;
     esac
 
-    log Debug "配置校验通过"
+    log Debug "Configuration validation passed"
     return 0
 }
 
 check_root() {
     if [ "$DRY_RUN" -eq 1 ]; then
-        log Debug "[DRY-RUN] 跳过 root 检查"
+        log Debug "[DRY-RUN] Skip root check"
         return 0
     fi
     if [ "$(id -u 2> /dev/null || echo 1)" != "0" ]; then
-        log Error "必须以 root 权限运行"
+        log Error "Must run with root privileges"
         exit 1
     fi
 }
 
 check_dependencies() {
     if [ "$DRY_RUN" -eq 1 ]; then
-        log Debug "[DRY-RUN] 跳过依赖检查"
+        log Debug "[DRY-RUN] Skip dependency check"
         return 0
     fi
 
@@ -341,15 +341,15 @@ check_dependencies() {
     done
 
     if [ -n "$missing" ]; then
-        log Error "缺少必要命令: $missing"
-        log Info "请检查 PATH: $PATH"
+        log Error "Missing required commands: $missing"
+        log Info "Check PATH: $PATH"
         exit 1
     fi
 }
 
 check_kernel_feature() {
     if [ "$DRY_RUN" -eq 1 ]; then
-        log Debug "[DRY-RUN] 跳过内核特性检查 $1"
+        log Debug "[DRY-RUN] Skip kernel feature check for $1"
         return 0
     fi
 
@@ -358,34 +358,34 @@ check_kernel_feature() {
 
     if [ -f /proc/config.gz ]; then
         if zcat /proc/config.gz 2> /dev/null | grep -qE "^${config_name}=[ym]$"; then
-            log Debug "内核特性 $feature 已启用"
+            log Debug "Kernel feature $feature is enabled"
             return 0
         else
-            log Debug "内核特性 $feature 未启用或未找到"
+            log Debug "Kernel feature $feature is disabled or not found"
             return 1
         fi
     else
-        log Debug "无法检查内核特性 $feature：/proc/config.gz 不可用"
+        log Debug "Cannot check kernel feature $feature: /proc/config.gz not available"
         return 1
     fi
 }
 
 check_tproxy_support() {
     if [ "$DRY_RUN" -eq 1 ]; then
-        log Debug "[DRY-RUN] 跳过 TPROXY 支持检查"
+        log Debug "[DRY-RUN] TPROXY support check skipped"
         return 0
     fi
 
     if check_kernel_feature "NETFILTER_XT_TARGET_TPROXY"; then
-        log Debug "内核 TPROXY 支持已确认"
+        log Debug "Kernel TPROXY support confirmed"
         return 0
     else
-        log Debug "内核不支持 TPROXY"
+        log Debug "Kernel TPROXY support not available"
         return 1
     fi
 }
 
-# 统一的命令封装函数
+# Unified command wrapper functions
 run_ipt_command() {
     local cmd="$1"
     shift
@@ -448,12 +448,12 @@ get_package_uid() {
     local line
     local uid
     if [ ! -r /data/system/packages.list ]; then
-        log Debug "无法读取 /data/system/packages.list"
+        log Debug "Cannot read /data/system/packages.list"
         return 1
     fi
     line=$(grep -m1 "^${pkg}[[:space:]]" /data/system/packages.list 2> /dev/null || true)
     if [ -z "$line" ]; then
-        log Debug "packages.list 中未找到包: $pkg"
+        log Debug "Package not found in packages.list: $pkg"
         return 1
     fi
 
@@ -465,7 +465,7 @@ get_package_uid() {
     esac
     case "$uid" in
         '' | *[!0-9]*)
-            log Debug "包的 UID 格式无效: $pkg"
+            log Debug "Invalid UID format for package: $pkg"
             return 1
             ;;
         *)
@@ -490,7 +490,7 @@ find_packages_uid() {
                 package=$(echo "$token" | cut -d: -f2-)
                 case "$user_prefix" in
                     '' | *[!0-9]*)
-                        log Warn "token 中的用户前缀无效: $token，使用 0"
+                        log Warn "Invalid user prefix in token: $token, using 0"
                         user_prefix=0
                         ;;
                 esac
@@ -499,9 +499,9 @@ find_packages_uid() {
         if uid_base=$(get_package_uid "$package" 2> /dev/null); then
             final_uid=$((user_prefix * 100000 + uid_base))
             out="$out $final_uid"
-            log Debug "将包 $token 解析为 UID $final_uid"
+            log Debug "Resolved package $token to UID $final_uid"
         else
-            log Warn "解析包 UID 失败: $package"
+            log Warn "Failed to resolve UID for package: $package"
         fi
     done
     echo "$out" | awk '{$1=$1;print}'
@@ -543,22 +543,22 @@ safe_chain_create() {
 
 download_cn_ip_list() {
     if [ "$BYPASS_CN_IP" -eq 0 ]; then
-        log Debug "已禁用大陆 IP 旁路，跳过下载"
+        log Debug "CN IP bypass is disabled, skipping download"
         return 0
     fi
 
-    log Info "检查/下载中国大陆 IP 列表到 $CN_IP_FILE"
+    log Info "Checking/Downloading China mainland IP list to $CN_IP_FILE"
 
-    # 若文件不存在或超过 7 天则重新下载
+    # Re-download if file doesn't exist or is older than 7 days
     if [ ! -f "$CN_IP_FILE" ] || [ "$(find "$CN_IP_FILE" -mtime +7 2> /dev/null)" ]; then
-        log Info "从 $CN_IP_URL 获取最新中国大陆 IP 列表"
+        log Info "Fetching latest China IP list from $CN_IP_URL"
         if [ "$DRY_RUN" -eq 1 ]; then
             log Debug "[DRY-RUN] curl -fsSL --connect-timeout 10 --retry 3 $CN_IP_URL -o $CN_IP_FILE.tmp"
         else
             if ! curl -fsSL --connect-timeout 10 --retry 3 \
                 "$CN_IP_URL" \
                 -o "$CN_IP_FILE.tmp"; then
-                log Error "下载中国大陆 IP 列表失败"
+                log Error "Failed to download China IP list"
                 rm -f "$CN_IP_FILE.tmp"
                 return 1
             fi
@@ -566,23 +566,23 @@ download_cn_ip_list() {
         if [ "$DRY_RUN" -eq 0 ]; then
             mv "$CN_IP_FILE.tmp" "$CN_IP_FILE"
         fi
-        log Info "中国大陆 IP 列表已保存到 $CN_IP_FILE"
+        log Info "China IP list saved to $CN_IP_FILE"
     else
-        log Debug "使用已存在的中国大陆 IP 列表: $CN_IP_FILE"
+        log Debug "Using existing China IP list: $CN_IP_FILE"
     fi
 
     if [ "$PROXY_IPV6" -eq 1 ]; then
-        log Info "检查/下载中国大陆 IPv6 列表到 $CN_IPV6_FILE"
+        log Info "Checking/Downloading China mainland IPv6 list to $CN_IPV6_FILE"
 
         if [ ! -f "$CN_IPV6_FILE" ] || [ "$(find "$CN_IPV6_FILE" -mtime +7 2> /dev/null)" ]; then
-            log Info "从 $CN_IPV6_URL 获取最新中国大陆 IPv6 列表"
+            log Info "Fetching latest China IPv6 list from $CN_IPV6_URL"
             if [ "$DRY_RUN" -eq 1 ]; then
                 log Debug "[DRY-RUN] curl -fsSL --connect-timeout 10 --retry 3 $CN_IPV6_URL -o $CN_IPV6_FILE.tmp"
             else
                 if ! curl -fsSL --connect-timeout 10 --retry 3 \
                     "$CN_IPV6_URL" \
                     -o "$CN_IPV6_FILE.tmp"; then
-                    log Error "下载中国大陆 IPv6 列表失败"
+                    log Error "Failed to download China IPv6 list"
                     rm -f "$CN_IPV6_FILE.tmp"
                     return 1
                 fi
@@ -590,25 +590,25 @@ download_cn_ip_list() {
             if [ "$DRY_RUN" -eq 0 ]; then
                 mv "$CN_IPV6_FILE.tmp" "$CN_IPV6_FILE"
             fi
-            log Info "中国大陆 IPv6 列表已保存到 $CN_IPV6_FILE"
+            log Info "China IPv6 list saved to $CN_IPV6_FILE"
         else
-            log Debug "使用已存在的中国大陆 IPv6 列表: $CN_IPV6_FILE"
+            log Debug "Using existing China IPv6 list: $CN_IPV6_FILE"
         fi
     fi
 }
 
 setup_cn_ipset() {
     if [ "$BYPASS_CN_IP" -eq 0 ]; then
-        log Debug "已禁用大陆 IP 旁路，跳过 ipset 设置"
+        log Debug "CN IP bypass is disabled, skipping ipset setup"
         return 0
     fi
 
     if ! command -v ipset > /dev/null 2>&1; then
-        log Error "未找到 ipset，无法旁路大陆 IP"
+        log Error "ipset not found. Cannot bypass CN IPs"
         return 1
     fi
 
-    log Info "为中国大陆 IP 设置 ipset"
+    log Info "Setting up ipset for China mainland IPs"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         log Debug "[DRY-RUN] ipset destroy cnip"
@@ -619,11 +619,11 @@ setup_cn_ipset() {
     fi
 
     if [ -f "$CN_IP_FILE" ]; then
-        log Debug "从 $CN_IP_FILE 加载 IPv4 CIDR"
+        log Debug "Loading IPv4 CIDR from $CN_IP_FILE"
         ipv4_count=$(wc -l < "$CN_IP_FILE" 2> /dev/null || echo "0")
 
         if [ "$DRY_RUN" -eq 1 ]; then
-            log Debug "[DRY-RUN] 将通过 ipset restore 加载 $ipv4_count 条 IPv4 CIDR"
+            log Debug "[DRY-RUN] Would load $ipv4_count IPv4 CIDR entries via ipset restore"
             log Debug "[DRY-RUN] ipset create cnip hash:net family inet hashsize 8192 maxelem 65536"
         else
             temp_file=$(mktemp)
@@ -633,28 +633,28 @@ setup_cn_ipset() {
             } > "$temp_file"
 
             if ipset restore -f "$temp_file" 2> /dev/null; then
-                log Info "成功加载 $ipv4_count 条 IPv4 CIDR"
+                log Info "Successfully loaded $ipv4_count IPv4 CIDR entries"
             else
-                log Error "创建 ipset 'cnip' 或加载 IPv4 CIDR 失败"
+                log Error "Failed to create ipset 'cnip' or load IPv4 CIDR entries"
                 rm -f "$temp_file"
                 return 1
             fi
             rm -f "$temp_file"
         fi
     else
-        log Warn "未找到中国大陆 IP 文件: $CN_IP_FILE"
+        log Warn "CN IP file not found: $CN_IP_FILE"
         return 1
     fi
 
-    log Info "ipset 'cnip' 已加载中国大陆 IPv4"
+    log Info "ipset 'cnip' loaded with China mainland IPs"
 
     if [ "$PROXY_IPV6" -eq 1 ]; then
         if [ -f "$CN_IPV6_FILE" ]; then
-            log Debug "从 $CN_IPV6_FILE 加载 IPv6 CIDR"
+            log Debug "Loading IPv6 CIDR from $CN_IPV6_FILE"
             ipv6_count=$(wc -l < "$CN_IPV6_FILE" 2> /dev/null || echo "0")
 
             if [ "$DRY_RUN" -eq 1 ]; then
-                log Debug "[DRY-RUN] 将通过 ipset restore 加载 $ipv6_count 条 IPv6 CIDR"
+                log Debug "[DRY-RUN] Would load $ipv6_count IPv6 CIDR entries via ipset restore"
                 log Debug "[DRY-RUN] ipset create cnip6 hash:net family inet6 hashsize 8192 maxelem 65536"
             else
                 temp_file6=$(mktemp)
@@ -664,27 +664,27 @@ setup_cn_ipset() {
                 } > "$temp_file6"
 
                 if ipset restore -f "$temp_file6" 2> /dev/null; then
-                    log Info "成功加载 $ipv6_count 条 IPv6 CIDR"
+                    log Info "Successfully loaded $ipv6_count IPv6 CIDR entries"
                 else
-                    log Error "创建 ipset 'cnip6' 或加载 IPv6 CIDR 失败"
+                    log Error "Failed to create ipset 'cnip6' or load IPv6 CIDR entries"
                     rm -f "$temp_file6"
                     return 1
                 fi
                 rm -f "$temp_file6"
             fi
-            log Info "ipset 'cnip6' 已加载中国大陆 IPv6 IP"
+            log Info "ipset 'cnip6' loaded with China mainland IPv6 IPs"
         else
-            log Warn "未找到中国大陆 IPv6 文件: $CN_IPV6_FILE"
+            log Warn "CN IPv6 file not found: $CN_IPV6_FILE"
         fi
     fi
 
     return 0
 }
 
-# 面向 IPv4/IPv6 的统一设置函数，带模式选择
+# Unified setup function for both IPv4 and IPv6 with mode selection
 setup_proxy_chain() {
     local family="$1"
-    local mode="$2" # tproxy 或 redirect
+    local mode="$2" # tproxy or redirect
     local suffix=""
     local mark="$MARK_VALUE"
     local cmd="iptables"
@@ -695,7 +695,7 @@ setup_proxy_chain() {
         cmd="ip6tables"
     fi
 
-    # 设置日志用的模式名称
+    # Set mode name for logging
     local mode_name="$mode"
     if [ "$mode" = "tproxy" ]; then
         mode_name="TPROXY"
@@ -703,9 +703,9 @@ setup_proxy_chain() {
         mode_name="REDIRECT"
     fi
 
-    log Info "为 IPv${family} 设置 $mode_name 链"
+    log Info "Setting up $mode_name chains for IPv${family}"
 
-    # 根据协议族定义链
+    # Define chains based on family
     local chains=""
     if [ "$family" = "6" ]; then
         chains="PROXY_PREROUTING6 PROXY_OUTPUT6 BYPASS_IP6 BYPASS_INTERFACE6 PROXY_INTERFACE6 DNS_HIJACK_PRE6 DNS_HIJACK_OUT6 APP_CHAIN6 MAC_CHAIN6"
@@ -718,7 +718,7 @@ setup_proxy_chain() {
         table="nat"
     fi
 
-    # 创建链
+    # Create chains
     for c in $chains; do
         safe_chain_create "$family" "$table" "$c"
     done
@@ -736,10 +736,10 @@ setup_proxy_chain() {
     if check_kernel_feature "NETFILTER_XT_MATCH_ADDRTYPE"; then
         $cmd -t "$table" -A "BYPASS_IP$suffix" -m addrtype --dst-type LOCAL -p udp ! --dport 53 -j ACCEPT
         $cmd -t "$table" -A "BYPASS_IP$suffix" -m addrtype --dst-type LOCAL ! -p udp -j ACCEPT
-        log Info "已添加本地地址类型旁路"
+        log Info "Added local address type bypass"
     fi
 
-    # 按协议族添加私网地址段
+    # Add private IP ranges based on family
     if [ "$family" = "6" ]; then
         for subnet6 in ::/128 ::1/128 ::ffff:0:0/96 \
             100::/64 64:ff9b::/96 2001::/32 2001:10::/28 \
@@ -757,7 +757,7 @@ setup_proxy_chain() {
             $cmd -t "$table" -A "BYPASS_IP$suffix" -d "$subnet4" ! -p udp -j ACCEPT
         done
     fi
-    log Info "已添加私网地址段旁路规则"
+    log Info "Added bypass rules for private IP ranges"
 
     if [ "$BYPASS_CN_IP" -eq 1 ]; then
         ipset_name="cnip"
@@ -767,29 +767,29 @@ setup_proxy_chain() {
         if command -v ipset > /dev/null 2>&1 && ipset list "$ipset_name" > /dev/null 2>&1; then
             $cmd -t "$table" -A "BYPASS_IP$suffix" -m set --match-set "$ipset_name" dst -p udp ! --dport 53 -j ACCEPT
             $cmd -t "$table" -A "BYPASS_IP$suffix" -m set --match-set "$ipset_name" dst ! -p udp -j ACCEPT
-            log Info "已添加基于 ipset 的大陆 IP 旁路规则"
+            log Info "Added ipset-based CN IP bypass rule"
         else
-            log Warn "ipset '$ipset_name' 不可用，跳过大陆 IP 旁路"
+            log Warn "ipset '$ipset_name' not available, skipping CN IP bypass"
         fi
     fi
 
-    log Info "正在配置接口代理规则"
+    log Info "Configuring interface proxy rules"
     $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i lo -j RETURN
     if [ "$PROXY_MOBILE" -eq 1 ]; then
         $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$MOBILE_INTERFACE" -j RETURN
-        log Info "移动数据接口 $MOBILE_INTERFACE 将被代理"
+        log Info "Mobile interface $MOBILE_INTERFACE will be proxied"
     else
         $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$MOBILE_INTERFACE" -j ACCEPT
         $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$MOBILE_INTERFACE" -j ACCEPT
-        log Info "移动数据接口 $MOBILE_INTERFACE 将旁路代理"
+        log Info "Mobile interface $MOBILE_INTERFACE will bypass proxy"
     fi
     if [ "$PROXY_WIFI" -eq 1 ]; then
         $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$WIFI_INTERFACE" -j RETURN
-        log Info "WiFi 接口 $WIFI_INTERFACE 将被代理"
+        log Info "WiFi interface $WIFI_INTERFACE will be proxied"
     else
         $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$WIFI_INTERFACE" -j ACCEPT
         $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$WIFI_INTERFACE" -j ACCEPT
-        log Info "WiFi 接口 $WIFI_INTERFACE 将旁路代理"
+        log Info "WiFi interface $WIFI_INTERFACE will bypass proxy"
     fi
     if [ "$PROXY_HOTSPOT" -eq 1 ]; then
         if [ "$HOTSPOT_INTERFACE" = "$WIFI_INTERFACE" ]; then
@@ -800,40 +800,40 @@ setup_proxy_chain() {
                 subnet="192.168.43.0/24"
             fi
             $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$WIFI_INTERFACE" ! -s "$subnet" -j RETURN
-            log Info "热点接口 $WIFI_INTERFACE 将被代理"
+            log Info "Hotspot interface $WIFI_INTERFACE will be proxied"
         else
             $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$HOTSPOT_INTERFACE" -j RETURN
-            log Info "热点接口 $HOTSPOT_INTERFACE 将被代理"
+            log Info "Hotspot interface $HOTSPOT_INTERFACE will be proxied"
         fi
     else
         $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$HOTSPOT_INTERFACE" -j ACCEPT
-        log Info "热点接口 $HOTSPOT_INTERFACE 将旁路代理"
+        log Info "Hotspot interface $HOTSPOT_INTERFACE will bypass proxy"
     fi
     if [ "$PROXY_USB" -eq 1 ]; then
         $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$USB_INTERFACE" -j RETURN
-        log Info "USB 接口 $USB_INTERFACE 将被代理"
+        log Info "USB interface $USB_INTERFACE will be proxied"
     else
         $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$USB_INTERFACE" -j ACCEPT
         $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$USB_INTERFACE" -j ACCEPT
-        log Info "USB 接口 $USB_INTERFACE 将旁路代理"
+        log Info "USB interface $USB_INTERFACE will bypass proxy"
     fi
     $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -j ACCEPT
-    log Info "接口代理规则配置完成"
+    log Info "Interface proxy rules configuration completed"
 
     if [ "$MAC_FILTER_ENABLE" -eq 1 ] && [ "$PROXY_HOTSPOT" -eq 1 ] && [ -n "$HOTSPOT_INTERFACE" ]; then
         if check_kernel_feature "NETFILTER_XT_MATCH_MAC"; then
-            log Info "为接口 $HOTSPOT_INTERFACE 设置 MAC 地址过滤规则"
+            log Info "Setting up MAC address filter rules for interface $HOTSPOT_INTERFACE"
             case "$MAC_PROXY_MODE" in
                 blacklist)
                     if [ -n "$BYPASS_MACS_LIST" ]; then
                         for mac in $BYPASS_MACS_LIST; do
                             if [ -n "$mac" ]; then
                                 $cmd -t "$table" -A "MAC_CHAIN$suffix" -m mac --mac-source "$mac" -i "$HOTSPOT_INTERFACE" -j ACCEPT
-                                log Info "添加 MAC 旁路规则 $mac"
+                                log Info "Added MAC bypass rule for $mac"
                             fi
                         done
                     else
-                        log Warn "MAC 黑名单模式已启用但未配置旁路 MAC"
+                        log Warn "MAC blacklist mode enabled but no bypass MACs configured"
                     fi
                     $cmd -t "$table" -A "MAC_CHAIN$suffix" -i "$HOTSPOT_INTERFACE" -j RETURN
                     ;;
@@ -842,33 +842,33 @@ setup_proxy_chain() {
                         for mac in $PROXY_MACS_LIST; do
                             if [ -n "$mac" ]; then
                                 $cmd -t "$table" -A "MAC_CHAIN$suffix" -m mac --mac-source "$mac" -i "$HOTSPOT_INTERFACE" -j RETURN
-                                log Info "添加 MAC 代理规则 $mac"
+                                log Info "Added MAC proxy rule for $mac"
                             fi
                         done
                     else
-                        log Warn "MAC 白名单模式已启用但未配置代理 MAC"
+                        log Warn "MAC whitelist mode enabled but no proxy MACs configured"
                     fi
                     $cmd -t "$table" -A "MAC_CHAIN$suffix" -i "$HOTSPOT_INTERFACE" -j ACCEPT
                     ;;
             esac
         else
-            log Warn "MAC 过滤需要 NETFILTER_XT_MATCH_MAC 内核特性，当前不可用"
+            log Warn "MAC filtering requires NETFILTER_XT_MATCH_MAC kernel feature which is not available"
         fi
     fi
 
     if check_kernel_feature "NETFILTER_XT_MATCH_OWNER"; then
         $cmd -t "$table" -A "APP_CHAIN$suffix" -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT
-        log Info "已为核心用户 $CORE_USER:$CORE_GROUP 添加旁路"
+        log Info "Added bypass for core user $CORE_USER:$CORE_GROUP"
     elif check_kernel_feature "NETFILTER_XT_MATCH_MARK" && [ -n "$ROUTING_MARK" ]; then
         $cmd -t "$table" -A "APP_CHAIN$suffix" -m mark --mark "$ROUTING_MARK" -j ACCEPT
-        log Info "已为标记 $ROUTING_MARK 的核心流量添加旁路"
+        log Info "Added bypass for marked traffic with core mark $ROUTING_MARK"
     else
-        log Warn "未配置核心流量旁路，可能导致流量回环"
+        log Warn "Core traffic bypass not configured, may cause traffic loop"
     fi
 
     if [ "$APP_PROXY_ENABLE" -eq 1 ]; then
         if check_kernel_feature "NETFILTER_XT_MATCH_OWNER"; then
-            log Info "按应用过滤规则，模式：$APP_PROXY_MODE"
+            log Info "Setting up application filter rules in $APP_PROXY_MODE mode"
             case "$APP_PROXY_MODE" in
                 blacklist)
                     if [ -n "$BYPASS_APPS_LIST" ]; then
@@ -876,11 +876,11 @@ setup_proxy_chain() {
                         for uid in $uids; do
                             if [ -n "$uid" ]; then
                                 $cmd -t "$table" -A "APP_CHAIN$suffix" -m owner --uid-owner "$uid" -j ACCEPT
-                                log Info "已为 UID $uid 添加旁路"
+                                log Info "Added bypass for UID $uid"
                             fi
                         done
                     else
-                        log Warn "应用黑名单模式启用，但未配置旁路应用"
+                        log Warn "App blacklist mode enabled but no bypass apps configured"
                     fi
                     $cmd -t "$table" -A "APP_CHAIN$suffix" -j RETURN
                     ;;
@@ -890,17 +890,17 @@ setup_proxy_chain() {
                         for uid in $uids; do
                             if [ -n "$uid" ]; then
                                 $cmd -t "$table" -A "APP_CHAIN$suffix" -m owner --uid-owner "$uid" -j RETURN
-                                log Info "已为 UID $uid 添加代理"
+                                log Info "Added proxy for UID $uid"
                             fi
                         done
                     else
-                        log Warn "应用白名单模式启用，但未配置代理应用"
+                        log Warn "App whitelist mode enabled but no proxy apps configured"
                     fi
                     $cmd -t "$table" -A "APP_CHAIN$suffix" -j ACCEPT
                     ;;
             esac
         else
-            log Warn "应用过滤需要 NETFILTER_XT_MATCH_OWNER 内核特性，当前不可用"
+            log Warn "Application filtering requires NETFILTER_XT_MATCH_OWNER kernel feature which is not available"
         fi
     fi
 
@@ -920,26 +920,26 @@ setup_proxy_chain() {
         $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -p tcp -j TPROXY --on-port "$PROXY_TCP_PORT" --tproxy-mark "$mark"
         $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -p udp -j TPROXY --on-port "$PROXY_UDP_PORT" --tproxy-mark "$mark"
         $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j MARK --set-mark "$mark"
-        log Info "已添加 TPROXY 模式规则"
+        log Info "TPROXY mode rules added"
     else
         $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -j REDIRECT --to-ports "$PROXY_TCP_PORT"
         $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j REDIRECT --to-ports "$PROXY_TCP_PORT"
-        log Info "已添加 REDIRECT 模式规则"
+        log Info "REDIRECT mode rules added"
     fi
 
-    # 加入主链路规则
+    # Add rules to main chains
     if [ "$PROXY_UDP" -eq 1 ] || [ "$mode" = "redirect" ]; then
         $cmd -t "$table" -I PREROUTING -p udp -j "PROXY_PREROUTING$suffix"
         $cmd -t "$table" -I OUTPUT -p udp -j "PROXY_OUTPUT$suffix"
-        log Info "已为 UDP 在 PREROUTING/OUTPUT 中添加规则"
+        log Info "Added UDP rules to PREROUTING and OUTPUT chains"
     fi
     if [ "$PROXY_TCP" -eq 1 ]; then
         $cmd -t "$table" -I PREROUTING -p tcp -j "PROXY_PREROUTING$suffix"
         $cmd -t "$table" -I OUTPUT -p tcp -j "PROXY_OUTPUT$suffix"
-        log Info "已为 TCP 在 PREROUTING/OUTPUT 中添加规则"
+        log Info "Added TCP rules to PREROUTING and OUTPUT chains"
     fi
 
-    log Info "IPv${family} 的 $mode_name 链设置完成"
+    log Info "$mode_name chains for IPv${family} setup completed"
 }
 
 setup_dns_hijack() {
@@ -957,30 +957,30 @@ setup_dns_hijack() {
 
     case "$mode" in
         tproxy)
-            # 在 PREROUTING 链处理来自接口的 DNS（DNS_HIJACK_PRE）
+            # Handle DNS from interfaces in PREROUTING chain (DNS_HIJACK_PRE)
             $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p tcp --dport 53 -j TPROXY --on-port "$PROXY_TCP_PORT" --tproxy-mark "$mark"
             $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p udp --dport 53 -j TPROXY --on-port "$PROXY_UDP_PORT" --tproxy-mark "$mark"
-            # 在 OUTPUT 链处理本地 DNS 劫持（DNS_HIJACK_OUT）
+            # Handle local DNS hijacking in OUTPUT chain (DNS_HIJACK_OUT)
             $cmd -t mangle -A "DNS_HIJACK_OUT$suffix" -p tcp --dport 53 -j MARK --set-mark "$mark"
             $cmd -t mangle -A "DNS_HIJACK_OUT$suffix" -p udp --dport 53 -j MARK --set-mark "$mark"
 
-            log Info "已使用 TPROXY 模式启用 DNS 劫持"
+            log Info "DNS hijack enabled using TPROXY mode"
             ;;
         redirect)
-            # 使用 REDIRECT 方式处理 DNS
+            # Handle DNS using REDIRECT method
             $cmd -t nat -A "DNS_HIJACK_PRE$suffix" -p tcp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
             $cmd -t nat -A "DNS_HIJACK_PRE$suffix" -p udp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
             $cmd -t nat -A "DNS_HIJACK_OUT$suffix" -p tcp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
             $cmd -t nat -A "DNS_HIJACK_OUT$suffix" -p udp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
 
-            log Info "已使用 REDIRECT 模式启用 DNS 劫持到端口 $DNS_PORT"
+            log Info "DNS hijack enabled using REDIRECT mode to port $DNS_PORT"
             ;;
         redirect2)
-            # 使用 REDIRECT 方式处理 DNS
+            # Handle DNS using REDIRECT method
             if [ "$family" = "6" ] && {
                 ! check_kernel_feature "IP6_NF_NAT" || ! check_kernel_feature "IP6_NF_TARGET_REDIRECT"
             }; then
-                log Warn "IPv6：内核不支持 IPv6 NAT 或 REDIRECT，跳过 IPv6 DNS 劫持"
+                log Warn "IPv6: Kernel does not support IPv6 NAT or REDIRECT, skipping IPv6 DNS hijack"
                 return 0
             fi
             safe_chain_create "$family" "nat" "NAT_DNS_HIJACK$suffix"
@@ -995,7 +995,7 @@ setup_dns_hijack() {
             $cmd -t nat -A OUTPUT -p tcp --dport 53 -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT
             $cmd -t nat -A OUTPUT -j "NAT_DNS_HIJACK$suffix"
 
-            log Info "已使用 REDIRECT 模式启用 DNS 劫持到端口 $DNS_PORT"
+            log Info "DNS hijack enabled using REDIRECT mode to port $DNS_PORT"
             ;;
     esac
 }
@@ -1005,7 +1005,7 @@ setup_tproxy_chain4() {
 }
 
 setup_redirect_chain4() {
-    log Warn "REDIRECT 模式仅支持 TCP"
+    log Warn "REDIRECT mode only supports TCP"
     setup_proxy_chain 4 "redirect"
 }
 
@@ -1015,15 +1015,15 @@ setup_tproxy_chain6() {
 
 setup_redirect_chain6() {
     if ! check_kernel_feature "IP6_NF_NAT" || ! check_kernel_feature "IP6_NF_TARGET_REDIRECT"; then
-        log Warn "IPv6：内核不支持 IPv6 NAT 或 REDIRECT，跳过 IPv6 代理设置"
+        log Warn "IPv6: Kernel does not support IPv6 NAT or REDIRECT, skipping IPv6 proxy setup"
         return 0
     fi
-    log Warn "REDIRECT 模式仅支持 TCP"
+    log Warn "REDIRECT mode only supports TCP"
     setup_proxy_chain 6 "redirect"
 }
 
 setup_routing4() {
-    log Info "正在设置 IPv4 路由规则"
+    log Info "Setting up routing rules for IPv4"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         log Debug "[DRY-RUN] ip rule add fwmark $MARK_VALUE lookup $TABLE_ID"
@@ -1034,12 +1034,12 @@ setup_routing4() {
         ip_route del local 0.0.0.0/0 dev lo table "$TABLE_ID" 2> /dev/null || true
 
         if ! ip_rule add fwmark "$MARK_VALUE" table "$TABLE_ID" pref "$TABLE_ID"; then
-            log Error "添加 IPv4 路由规则失败"
+            log Error "Failed to add IPv4 routing rule"
             return 1
         fi
 
         if ! ip_route add local 0.0.0.0/0 dev lo table "$TABLE_ID"; then
-            log Error "添加 IPv4 路由失败"
+            log Error "Failed to add IPv4 route"
             ip_rule del fwmark "$MARK_VALUE" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
             return 1
         fi
@@ -1047,11 +1047,11 @@ setup_routing4() {
         echo 1 > /proc/sys/net/ipv4/ip_forward
     fi
 
-    log Info "IPv4 路由设置完成"
+    log Info "IPv4 routing setup completed"
 }
 
 setup_routing6() {
-    log Info "正在设置 IPv6 路由规则"
+    log Info "Setting up routing rules for IPv6"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         log Debug "[DRY-RUN] ip -6 rule add fwmark $MARK_VALUE6 lookup $TABLE_ID"
@@ -1062,12 +1062,12 @@ setup_routing6() {
         ip6_route del local ::/0 dev lo table "$TABLE_ID" 2> /dev/null || true
 
         if ! ip6_rule add fwmark "$MARK_VALUE6" table "$TABLE_ID" pref "$TABLE_ID"; then
-            log Error "添加 IPv6 路由规则失败"
+            log Error "Failed to add IPv6 routing rule"
             return 1
         fi
 
         if ! ip6_route add local ::/0 dev lo table "$TABLE_ID"; then
-            log Error "添加 IPv6 路由失败"
+            log Error "Failed to add IPv6 route"
             ip6_rule del fwmark "$MARK_VALUE6" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
             return 1
         fi
@@ -1075,10 +1075,10 @@ setup_routing6() {
         echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
     fi
 
-    log Info "IPv6 路由设置完成"
+    log Info "IPv6 routing setup completed"
 }
 
-# 面向 IPv4/IPv6 的统一清理函数，带模式选择
+# Unified cleanup function for both IPv4 and IPv6 with mode selection
 cleanup_chain() {
     local family="$1"
     local mode="$2"
@@ -1090,7 +1090,7 @@ cleanup_chain() {
         cmd="ip6tables"
     fi
 
-    # 设置日志用的模式名称
+    # Set mode name for logging
     local mode_name="$mode"
     if [ "$mode" = "tproxy" ]; then
         mode_name="TPROXY"
@@ -1098,14 +1098,14 @@ cleanup_chain() {
         mode_name="REDIRECT"
     fi
 
-    log Info "正在清理 IPv${family} 的 $mode_name 链"
+    log Info "Cleaning up $mode_name chains for IPv${family}"
 
     local table="mangle"
     if [ "$mode" = "redirect" ]; then
         table="nat"
     fi
 
-    # 从主链移除规则
+    # Remove rules from main chains
     $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "BYPASS_IP$suffix" 2> /dev/null || true
     $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "PROXY_INTERFACE$suffix" 2> /dev/null || true
     $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "MAC_CHAIN$suffix" 2> /dev/null || true
@@ -1125,7 +1125,7 @@ cleanup_chain() {
         $cmd -t "$table" -D OUTPUT -p udp -j "PROXY_OUTPUT$suffix" 2> /dev/null || true
     fi
 
-    # 根据协议族定义链
+    # Define chains based on family
     local chains=""
     if [ "$family" = "6" ]; then
         chains="PROXY_PREROUTING6 PROXY_OUTPUT6 BYPASS_IP6 BYPASS_INTERFACE6 PROXY_INTERFACE6 DNS_HIJACK_PRE6 DNS_HIJACK_OUT6 APP_CHAIN6 MAC_CHAIN6"
@@ -1133,13 +1133,13 @@ cleanup_chain() {
         chains="PROXY_PREROUTING PROXY_OUTPUT BYPASS_IP BYPASS_INTERFACE PROXY_INTERFACE DNS_HIJACK_PRE DNS_HIJACK_OUT APP_CHAIN MAC_CHAIN"
     fi
 
-    # 清空并删除链
+    # Clean up chains
     for c in $chains; do
         $cmd -t "$table" -F "$c" 2> /dev/null || true
         $cmd -t "$table" -X "$c" 2> /dev/null || true
     done
 
-    # 如适用，删除 DNS 规则
+    # Remove DNS rules if applicable
     if [ "$mode" = "tproxy" ] && [ "$DNS_HIJACK_ENABLE" -eq 2 ]; then
         $cmd -t nat -D PREROUTING -i "$MOBILE_INTERFACE" -j "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
         $cmd -t nat -D PREROUTING -i "$WIFI_INTERFACE" -j "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
@@ -1151,7 +1151,7 @@ cleanup_chain() {
         $cmd -t nat -X "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
     fi
 
-    log Info "IPv${family} 的 $mode_name 链清理完成"
+    log Info "$mode_name chains for IPv${family} cleanup completed"
 }
 
 cleanup_tproxy_chain4() {
@@ -1168,14 +1168,14 @@ cleanup_redirect_chain4() {
 
 cleanup_redirect_chain6() {
     if ! check_kernel_feature "IP6_NF_NAT" || ! check_kernel_feature "IP6_NF_TARGET_REDIRECT"; then
-        log Warn "IPv6：内核不支持 IPv6 NAT 或 REDIRECT，跳过 IPv6 清理"
+        log Warn "IPv6: Kernel does not support IPv6 NAT or REDIRECT, skipping IPv6 cleanup"
         return 0
     fi
     cleanup_chain 6 "redirect"
 }
 
 cleanup_routing4() {
-    log Info "正在清理 IPv4 路由规则"
+    log Info "Cleaning up IPv4 routing rules"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         log Debug "[DRY-RUN] ip rule del fwmark $MARK_VALUE table $TABLE_ID pref $TABLE_ID"
@@ -1187,11 +1187,11 @@ cleanup_routing4() {
         echo 0 > /proc/sys/net/ipv4/ip_forward 2> /dev/null || true
     fi
 
-    log Info "IPv4 路由清理完成"
+    log Info "IPv4 routing cleanup completed"
 }
 
 cleanup_routing6() {
-    log Info "正在清理 IPv6 路由规则"
+    log Info "Cleaning up IPv6 routing rules"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         log Debug "[DRY-RUN] ip -6 rule del fwmark $MARK_VALUE6 table $TABLE_ID pref $TABLE_ID"
@@ -1203,12 +1203,12 @@ cleanup_routing6() {
         echo 0 > /proc/sys/net/ipv6/conf/all/forwarding 2> /dev/null || true
     fi
 
-    log Info "IPv6 路由清理完成"
+    log Info "IPv6 routing cleanup completed"
 }
 
 cleanup_ipset() {
     if [ "$BYPASS_CN_IP" -eq 0 ]; then
-        log Debug "已禁用大陆 IP 旁路，跳过 ipset 清理"
+        log Debug "CN IP bypass is disabled, skipping ipset cleanup"
         return 0
     fi
 
@@ -1218,7 +1218,7 @@ cleanup_ipset() {
     else
         ipset destroy cnip 2> /dev/null || true
         ipset destroy cnip6 2> /dev/null || true
-        log Info "已销毁 ipset 'cnip' 和 'cnip6'"
+        log Info "ipset 'cnip' and 'cnip6' destroyed"
     fi
 }
 
@@ -1228,36 +1228,36 @@ detect_proxy_mode() {
         0)
             if check_tproxy_support; then
                 USE_TPROXY=1
-                log Info "内核支持 TPROXY，使用 TPROXY 模式（自动）"
+                log Info "Kernel supports TPROXY, using TPROXY mode (auto)"
             else
-                log Warn "内核不支持 TPROXY，回退为 REDIRECT 模式（自动）"
+                log Warn "Kernel does not support TPROXY, falling back to REDIRECT mode (auto)"
             fi
             ;;
         1)
             if check_tproxy_support; then
                 USE_TPROXY=1
-                log Info "使用 TPROXY 模式（配置强制）"
+                log Info "Using TPROXY mode (forced by configuration)"
             else
-                log Error "已强制 TPROXY 模式但内核不支持 TPROXY"
+                log Error "TPROXY mode forced but kernel does not support TPROXY"
                 exit 1
             fi
             ;;
         2)
-            log Info "使用 REDIRECT 模式（配置强制）"
+            log Info "Using REDIRECT mode (forced by configuration)"
             ;;
     esac
 }
 
 start_proxy() {
-    log Info "开始代理设置..."
+    log Info "Starting proxy setup..."
     if [ "$BYPASS_CN_IP" -eq 1 ]; then
         if ! check_kernel_feature "IP_SET" || ! check_kernel_feature "NETFILTER_XT_SET"; then
-            log Error "内核不支持 ipset（CONFIG_IP_SET, CONFIG_NETFILTER_XT_SET），无法旁路大陆 IP"
+            log Error "Kernel does not support ipset (CONFIG_IP_SET, CONFIG_NETFILTER_XT_SET). Cannot bypass CN IPs"
             BYPASS_CN_IP=0
         else
-            download_cn_ip_list || log Warn "下载大陆 IP 列表失败，将继续但不使用"
+            download_cn_ip_list || log Warn "Failed to download CN IP list, continuing without it"
             if ! setup_cn_ipset; then
-                log Error "设置 ipset 失败，大陆旁路已禁用"
+                log Error "Failed to setup ipset, CN bypass disabled"
                 BYPASS_CN_IP=0
             fi
         fi
@@ -1276,13 +1276,13 @@ start_proxy() {
             setup_redirect_chain6
         fi
     fi
-    log Info "代理设置完成"
+    log Info "Proxy setup completed"
 }
 
 stop_proxy() {
-    log Info "正在停止代理..."
+    log Info "Stopping proxy..."
     if [ "$USE_TPROXY" -eq 1 ]; then
-        log Info "清理 TPROXY 链"
+        log Info "Cleaning up TPROXY chains"
         cleanup_tproxy_chain4
         cleanup_routing4
         if [ "$PROXY_IPV6" -eq 1 ]; then
@@ -1290,14 +1290,14 @@ stop_proxy() {
             cleanup_routing6
         fi
     else
-        log Info "清理 REDIRECT 链"
+        log Info "Cleaning up REDIRECT chains"
         cleanup_redirect_chain4
         if [ "$PROXY_IPV6" -eq 1 ]; then
             cleanup_redirect_chain6
         fi
     fi
     cleanup_ipset
-    log Info "代理已停止"
+    log Info "Proxy stopped"
 }
 
 parse_args() {
@@ -1307,7 +1307,7 @@ parse_args() {
         case "$1" in
             start | stop | restart)
                 if [ -n "$MAIN_CMD" ]; then
-                    log Error "指定了多个命令。"
+                    log Error "Multiple commands specified."
                     exit 1
                 fi
                 MAIN_CMD="$1"
@@ -1316,7 +1316,7 @@ parse_args() {
                 DRY_RUN=1
                 ;;
             *)
-                log Error "用法: %s {start|stop|restart} [--dry-run]" "$(basename "$0")"
+                log Error "Usage: %s {start|stop|restart} [--dry-run]" "$(basename "$0")"
                 exit 1
                 ;;
         esac
@@ -1324,14 +1324,14 @@ parse_args() {
     done
 
     if [ -z "$MAIN_CMD" ]; then
-        log Error "用法: %s {start|stop|restart} [--dry-run]" "$(basename "$0")"
+        log Error "Usage: %s {start|stop|restart} [--dry-run]" "$(basename "$0")"
         exit 1
     fi
 }
 
 main() {
     if ! validate_config; then
-        log Error "配置校验失败"
+        log Error "Configuration validation failed"
         exit 1
     fi
 
@@ -1345,14 +1345,14 @@ main() {
             stop_proxy
             ;;
         restart)
-            log Info "正在重启代理..."
+            log Info "Restarting proxy..."
             stop_proxy
             sleep 2
             start_proxy
-            log Info "代理已重启"
+            log Info "Proxy restarted"
             ;;
         *)
-            log Error "用法: %s {start|stop|restart} [--dry-run]\n" "$(basename "$0")"
+            log Error "Usage: %s {start|stop|restart} [--dry-run]\n" "$(basename "$0")"
             exit 1
             ;;
     esac
