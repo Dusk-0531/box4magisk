@@ -1,573 +1,1369 @@
 #!/system/bin/sh
 
-export PATH="/data/adb/magisk:/data/adb/ksu/bin:/data/adb/ap/bin:$PATH:/data/data/com.termux/files/usr/bin"
+# 配置（可按需修改）
 
-scripts=$(realpath $0)
-scripts_dir=$(dirname ${scripts})
+# 代理核心配置
+# 代理运行的用户和组
+readonly DEFAULT_CORE_USER_GROUP="root:net_admin"
+# 代理流量标记
+readonly DEFAULT_ROUTING_MARK=""
+# 代理端口（透明代理监听端口）
+readonly DEFAULT_PROXY_TCP_PORT="1536"
+readonly DEFAULT_PROXY_UDP_PORT="1536"
 
-source ${scripts_dir}/box.config
-mark_id="16777216/16777216"
-table_id="2024"
-# routing_mark="233"
+# 代理模式：0=自动（检测 TPROXY 支持），1=强制 TPROXY，2=强制 REDIRECT
+readonly DEFAULT_PROXY_MODE=0
+
+# DNS 配置
+# DNS 劫持方式（0：禁用，1：tproxy，2：redirect）
+readonly DEFAULT_DNS_HIJACK_ENABLE=1
+# DNS 监听端口
+readonly DEFAULT_DNS_PORT="1053"
+
+# 网口定义
+# 移动数据接口
+readonly DEFAULT_MOBILE_INTERFACE="rmnet_data+"
+# WiFi 接口
+readonly DEFAULT_WIFI_INTERFACE="wlan0"
+# 热点接口
+readonly DEFAULT_HOTSPOT_INTERFACE="wlan2"
+# USB 共享网接口
+readonly DEFAULT_USB_INTERFACE="rndis+"
+
+# 代理开关
+readonly DEFAULT_PROXY_MOBILE=1
+readonly DEFAULT_PROXY_WIFI=1
+readonly DEFAULT_PROXY_HOTSPOT=0
+readonly DEFAULT_PROXY_USB=0
+readonly DEFAULT_PROXY_TCP=1
+readonly DEFAULT_PROXY_UDP=1
+readonly DEFAULT_PROXY_IPV6=1
+
+# 标记值
+readonly DEFAULT_MARK_VALUE=20
+readonly DEFAULT_MARK_VALUE6=25
+
+# 路由表 ID
+readonly DEFAULT_TABLE_ID=2025
+
+# 分应用代理（用空格分隔包名，支持 user:package 格式）
+readonly DEFAULT_APP_PROXY_ENABLE=0
+readonly DEFAULT_PROXY_APPS_LIST=""
+# 例： "com.example.app com.other"
+readonly DEFAULT_BYPASS_APPS_LIST=""
+# 例： "com.android.shell"
+readonly DEFAULT_APP_PROXY_MODE="blacklist"
+# "blacklist" 或 "whitelist"
+
+# 中国大陆 IP 旁路配置
+readonly DEFAULT_BYPASS_CN_IP=1
+# 中国大陆 IP 列表文件路径
+_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+readonly DEFAULT_SCRIPT_DIR="$_SCRIPT_DIR"
+readonly DEFAULT_CN_IP_FILE="${DEFAULT_SCRIPT_DIR}/cn.zone"
+readonly DEFAULT_CN_IPV6_FILE="${DEFAULT_SCRIPT_DIR}/cn_ipv6.zone"
+# 中国大陆 IP 源地址
+readonly DEFAULT_CN_IP_URL="https://raw.githubusercontent.com/Hackl0us/GeoIP2-CN/release/CN-ip-cidr.txt"
+readonly DEFAULT_CN_IPV6_URL="https://ispip.clang.cn/all_cn_ipv6.txt"
+
+# MAC 地址黑/白名单配置（热点模式）
+readonly DEFAULT_MAC_FILTER_ENABLE=0
+# MAC 地址黑/白名单（用空格分隔 MAC 地址）
+readonly DEFAULT_PROXY_MACS_LIST=""
+# 例： "AA:BB:CC:DD:EE:FF 11:22:33:44:55:66"
+readonly DEFAULT_BYPASS_MACS_LIST=""
+# 例： "FF:EE:DD:CC:BB:AA"
+readonly DEFAULT_MAC_PROXY_MODE="blacklist"
+# "blacklist" 或 "whitelist"
+
+# 演练模式（默认关闭）
+readonly DEFAULT_DRY_RUN=0
 
 log() {
-  export TZ=Asia/Shanghai
-  now=$(date +"[%Y-%m-%d %H:%M:%S %Z]")
-  case $1 in
-    Info)
-      [ -t 1 ] && echo -e "\033[1;32m${now} [Info]: $2\033[0m" || echo "${now} [Info]: $2"
-      ;;
-    Warn)
-      [ -t 1 ] && echo -e "\033[1;33m${now} [Warn]: $2\033[0m" || echo "${now} [Warn]: $2"
-      ;;
-    Error)
-      [ -t 1 ] && echo -e "\033[1;31m${now} [Error]: $2\033[0m" || echo "${now} [Error]: $2"
-      ;;
-    *)
-      [ -t 1 ] && echo -e "\033[1;30m${now} [$1]: $2\033[0m" || echo "${now} [$1]: $2"
-      ;;
-  esac
+    local level="$1"
+    local message="$2"
+    local timestamp
+    local color_code
+
+    timestamp="$(date +"%Y-%m-%d %H:%M:%S")"
+
+    case "$level" in
+        Debug) color_code="\033[0;36m" ;;
+        Info) color_code="\033[1;32m" ;;
+        Warn) color_code="\033[1;33m" ;;
+        Error) color_code="\033[1;31m" ;;
+        *)
+            level="Unknown"
+            color_code="\033[0m"
+            ;;
+    esac
+
+    if [ -t 1 ]; then
+        printf "%b\n" "${color_code}${timestamp} [${level}]: ${message}\033[0m"
+    else
+        printf "%s\n" "${timestamp} [${level}]: ${message}"
+    fi
 }
 
-uid_list=()
+load_config() {
+    log Info "从环境变量或默认值加载配置..."
+
+    # 演练模式（默认关闭）
+    DRY_RUN="${DRY_RUN:-$DEFAULT_DRY_RUN}"
+    log Info "DRY_RUN: $DRY_RUN"
+
+    # 代理核心配置
+    CORE_USER_GROUP="${CORE_USER_GROUP:-$DEFAULT_CORE_USER_GROUP}"
+    log Info "CORE_USER_GROUP: $CORE_USER_GROUP"
+
+    ROUTING_MARK="${ROUTING_MARK:-$DEFAULT_ROUTING_MARK}"
+    log Info "ROUTING_MARK: $ROUTING_MARK"
+
+    PROXY_TCP_PORT="${PROXY_TCP_PORT:-$DEFAULT_PROXY_TCP_PORT}"
+    log Info "PROXY_TCP_PORT: $PROXY_TCP_PORT"
+
+    PROXY_UDP_PORT="${PROXY_UDP_PORT:-$DEFAULT_PROXY_UDP_PORT}"
+    log Info "PROXY_UDP_PORT: $PROXY_UDP_PORT"
+
+    # 代理模式：0=自动，1=强制 TPROXY，2=强制 REDIRECT
+    PROXY_MODE="${PROXY_MODE:-$DEFAULT_PROXY_MODE}"
+    log Info "PROXY_MODE: $PROXY_MODE"
+
+    # DNS 配置
+    DNS_HIJACK_ENABLE="${DNS_HIJACK_ENABLE:-$DEFAULT_DNS_HIJACK_ENABLE}"
+    log Info "DNS_HIJACK_ENABLE: $DNS_HIJACK_ENABLE"
+
+    DNS_PORT="${DNS_PORT:-$DEFAULT_DNS_PORT}"
+    log Info "DNS_PORT: $DNS_PORT"
+
+    # 网口定义
+    MOBILE_INTERFACE="${MOBILE_INTERFACE:-$DEFAULT_MOBILE_INTERFACE}"
+    log Info "MOBILE_INTERFACE: $MOBILE_INTERFACE"
+
+    WIFI_INTERFACE="${WIFI_INTERFACE:-$DEFAULT_WIFI_INTERFACE}"
+    log Info "WIFI_INTERFACE: $WIFI_INTERFACE"
+
+    HOTSPOT_INTERFACE="${HOTSPOT_INTERFACE:-$DEFAULT_HOTSPOT_INTERFACE}"
+    log Info "HOTSPOT_INTERFACE: $HOTSPOT_INTERFACE"
+
+    USB_INTERFACE="${USB_INTERFACE:-$DEFAULT_USB_INTERFACE}"
+    log Info "USB_INTERFACE: $USB_INTERFACE"
+
+    # 代理开关
+    PROXY_MOBILE="${PROXY_MOBILE:-$DEFAULT_PROXY_MOBILE}"
+    log Info "PROXY_MOBILE: $PROXY_MOBILE"
+
+    PROXY_WIFI="${PROXY_WIFI:-$DEFAULT_PROXY_WIFI}"
+    log Info "PROXY_WIFI: $PROXY_WIFI"
+
+    PROXY_HOTSPOT="${PROXY_HOTSPOT:-$DEFAULT_PROXY_HOTSPOT}"
+    log Info "PROXY_HOTSPOT: $PROXY_HOTSPOT"
+
+    PROXY_USB="${PROXY_USB:-$DEFAULT_PROXY_USB}"
+    log Info "PROXY_USB: $PROXY_USB"
+
+    PROXY_TCP="${PROXY_TCP:-$DEFAULT_PROXY_TCP}"
+    log Info "PROXY_TCP: $PROXY_TCP"
+
+    PROXY_UDP="${PROXY_UDP:-$DEFAULT_PROXY_UDP}"
+    log Info "PROXY_UDP: $PROXY_UDP"
+
+    PROXY_IPV6="${PROXY_IPV6:-$DEFAULT_PROXY_IPV6}"
+    log Info "PROXY_IPV6: $PROXY_IPV6"
+
+    # 标记值
+    MARK_VALUE="${MARK_VALUE:-$DEFAULT_MARK_VALUE}"
+    log Info "MARK_VALUE: $MARK_VALUE"
+
+    MARK_VALUE6="${MARK_VALUE6:-$DEFAULT_MARK_VALUE6}"
+    log Info "MARK_VALUE6: $MARK_VALUE6"
+
+    # 路由表 ID
+    TABLE_ID="${TABLE_ID:-$DEFAULT_TABLE_ID}"
+    log Info "TABLE_ID: $TABLE_ID"
+
+    # 分应用代理
+    APP_PROXY_ENABLE="${APP_PROXY_ENABLE:-$DEFAULT_APP_PROXY_ENABLE}"
+    log Info "APP_PROXY_ENABLE: $APP_PROXY_ENABLE"
+
+    PROXY_APPS_LIST="${PROXY_APPS_LIST:-$DEFAULT_PROXY_APPS_LIST}"
+    log Info "PROXY_APPS_LIST: $PROXY_APPS_LIST"
+
+    BYPASS_APPS_LIST="${BYPASS_APPS_LIST:-$DEFAULT_BYPASS_APPS_LIST}"
+    log Info "BYPASS_APPS_LIST: $BYPASS_APPS_LIST"
+
+    APP_PROXY_MODE="${APP_PROXY_MODE:-$DEFAULT_APP_PROXY_MODE}"
+    log Info "APP_PROXY_MODE: $APP_PROXY_MODE"
+
+    # 中国大陆 IP 旁路
+    BYPASS_CN_IP="${BYPASS_CN_IP:-$DEFAULT_BYPASS_CN_IP}"
+    log Info "BYPASS_CN_IP: $BYPASS_CN_IP"
+
+    CN_IP_FILE="${CN_IP_FILE:-$DEFAULT_CN_IP_FILE}"
+    log Info "CN_IP_FILE: $CN_IP_FILE"
+
+    CN_IPV6_FILE="${CN_IPV6_FILE:-$DEFAULT_CN_IPV6_FILE}"
+    log Info "CN_IPV6_FILE: $CN_IPV6_FILE"
+
+    CN_IP_URL="${CN_IP_URL:-$DEFAULT_CN_IP_URL}"
+    log Info "CN_IP_URL: $CN_IP_URL"
+
+    CN_IPV6_URL="${CN_IPV6_URL:-$DEFAULT_CN_IPV6_URL}"
+    log Info "CN_IPV6_URL: $CN_IPV6_URL"
+
+    # MAC 地址过滤
+    MAC_FILTER_ENABLE="${MAC_FILTER_ENABLE:-$DEFAULT_MAC_FILTER_ENABLE}"
+    log Info "MAC_FILTER_ENABLE: $MAC_FILTER_ENABLE"
+
+    PROXY_MACS_LIST="${PROXY_MACS_LIST:-$DEFAULT_PROXY_MACS_LIST}"
+    log Info "PROXY_MACS_LIST: $PROXY_MACS_LIST"
+
+    BYPASS_MACS_LIST="${BYPASS_MACS_LIST:-$DEFAULT_BYPASS_MACS_LIST}"
+    log Info "BYPASS_MACS_LIST: $BYPASS_MACS_LIST"
+
+    MAC_PROXY_MODE="${MAC_PROXY_MODE:-$DEFAULT_MAC_PROXY_MODE}"
+    log Info "MAC_PROXY_MODE: $MAC_PROXY_MODE"
+
+    log Info "配置加载完成"
+}
+
+validate_config() {
+    log Debug "正在校验配置..."
+
+    if ! echo "$PROXY_TCP_PORT" | grep -E '^[0-9]+$' > /dev/null || [ "$PROXY_TCP_PORT" -lt 1 ] || [ "$PROXY_TCP_PORT" -gt 65535 ]; then
+        log Error "无效的 PROXY_TCP_PORT: $PROXY_TCP_PORT"
+        return 1
+    fi
+
+    if ! echo "$PROXY_UDP_PORT" | grep -E '^[0-9]+$' > /dev/null || [ "$PROXY_UDP_PORT" -lt 1 ] || [ "$PROXY_UDP_PORT" -gt 65535 ]; then
+        log Error "无效的 PROXY_UDP_PORT: $PROXY_UDP_PORT"
+        return 1
+    fi
+
+    if ! echo "$PROXY_MODE" | grep -E '^[0-2]$' > /dev/null; then
+        log Error "无效的 PROXY_MODE: $PROXY_MODE（必须是 0=auto，1=force TPROXY，2=force REDIRECT）"
+        return 1
+    fi
+
+    if ! echo "$DNS_HIJACK_ENABLE" | grep -E '^[0-2]$' > /dev/null; then
+        log Error "无效的 DNS_HIJACK_ENABLE: $DNS_HIJACK_ENABLE（必须是 0=disabled，1=tproxy，2=redirect）"
+        return 1
+    fi
+
+    if ! echo "$DNS_PORT" | grep -E '^[0-9]+$' > /dev/null || [ "$DNS_PORT" -lt 1 ] || [ "$DNS_PORT" -gt 65535 ]; then
+        log Error "无效的 DNS_PORT: $DNS_PORT"
+        return 1
+    fi
+
+    if ! echo "$MARK_VALUE" | grep -E '^[0-9]+$' > /dev/null || [ "$MARK_VALUE" -lt 1 ] || [ "$MARK_VALUE" -gt 2147483647 ]; then
+        log Error "无效的 MARK_VALUE: $MARK_VALUE"
+        return 1
+    fi
+
+    if ! echo "$MARK_VALUE6" | grep -E '^[0-9]+$' > /dev/null || [ "$MARK_VALUE6" -lt 1 ] || [ "$MARK_VALUE6" -gt 2147483647 ]; then
+        log Error "无效的 MARK_VALUE6: $MARK_VALUE6"
+        return 1
+    fi
+
+    if ! echo "$TABLE_ID" | grep -E '^[0-9]+$' > /dev/null || [ "$TABLE_ID" -lt 1 ] || [ "$TABLE_ID" -gt 65535 ]; then
+        log Error "无效的 TABLE_ID: $TABLE_ID"
+        return 1
+    fi
+
+    case "$CORE_USER_GROUP" in
+        *:*)
+            CORE_USER=$(echo "$CORE_USER_GROUP" | cut -d: -f1)
+            CORE_GROUP=$(echo "$CORE_USER_GROUP" | cut -d: -f2)
+            log Debug "解析得到 user:group 为 '$CORE_USER:$CORE_GROUP'"
+            ;;
+        *)
+            CORE_USER="root"
+            CORE_GROUP="net_admin"
+            log Debug "使用默认 user:group '$CORE_USER:$CORE_GROUP'"
+            ;;
+    esac
+
+    if [ -z "$CORE_USER" ] || [ -z "$CORE_GROUP" ]; then
+        log Warn "检测到空的用户或组，使用默认值"
+        CORE_USER="root"
+        CORE_GROUP="net_admin"
+    fi
+
+    log Info "最终的 user:group 配置：'$CORE_USER:$CORE_GROUP'"
+
+    case "$APP_PROXY_MODE" in
+        blacklist | whitelist) ;;
+        *)
+            log Error "无效的 APP_PROXY_MODE: $APP_PROXY_MODE"
+            return 1
+            ;;
+    esac
+
+    case "$MAC_PROXY_MODE" in
+        blacklist | whitelist) ;;
+        *)
+            log Error "无效的 MAC_PROXY_MODE: $MAC_PROXY_MODE"
+            return 1
+            ;;
+    esac
+
+    log Debug "配置校验通过"
+    return 0
+}
+
+check_root() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] 跳过 root 检查"
+        return 0
+    fi
+    if [ "$(id -u 2> /dev/null || echo 1)" != "0" ]; then
+        log Error "必须以 root 权限运行"
+        exit 1
+    fi
+}
+
+check_dependencies() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] 跳过依赖检查"
+        return 0
+    fi
+
+    export PATH="$PATH:/data/data/com.termux/files/usr/bin"
+
+    local missing=""
+    local required_commands="ip iptables curl"
+    local cmd
+
+    for cmd in $required_commands; do
+        if ! command -v "$cmd" > /dev/null 2>&1; then
+            missing="$missing $cmd"
+        fi
+    done
+
+    if [ -n "$missing" ]; then
+        log Error "缺少必要命令: $missing"
+        log Info "请检查 PATH: $PATH"
+        exit 1
+    fi
+}
+
+check_kernel_feature() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] 跳过内核特性检查 $1"
+        return 0
+    fi
+
+    local feature="$1"
+    local config_name="CONFIG_${feature}"
+
+    if [ -f /proc/config.gz ]; then
+        if zcat /proc/config.gz 2> /dev/null | grep -qE "^${config_name}=[ym]$"; then
+            log Debug "内核特性 $feature 已启用"
+            return 0
+        else
+            log Debug "内核特性 $feature 未启用或未找到"
+            return 1
+        fi
+    else
+        log Debug "无法检查内核特性 $feature：/proc/config.gz 不可用"
+        return 1
+    fi
+}
+
+check_tproxy_support() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] 跳过 TPROXY 支持检查"
+        return 0
+    fi
+
+    if check_kernel_feature "NETFILTER_XT_TARGET_TPROXY"; then
+        log Debug "内核 TPROXY 支持已确认"
+        return 0
+    else
+        log Debug "内核不支持 TPROXY"
+        return 1
+    fi
+}
+
+# 统一的命令封装函数
+run_ipt_command() {
+    local cmd="$1"
+    shift
+    local args="$*"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] $cmd $args"
+        return 0
+    else
+        command $cmd -w 100 $args
+    fi
+}
+
+iptables() {
+    run_ipt_command iptables "$@"
+}
+
+ip6tables() {
+    run_ipt_command ip6tables "$@"
+}
+
+ip_rule() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip rule $*"
+        return 0
+    else
+        command ip rule "$@"
+    fi
+}
+
+ip6_rule() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip -6 rule $*"
+        return 0
+    else
+        command ip -6 rule "$@"
+    fi
+}
+
+ip_route() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip route $*"
+        return 0
+    else
+        command ip route "$@"
+    fi
+}
+
+ip6_route() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip -6 route $*"
+        return 0
+    else
+        command ip -6 route "$@"
+    fi
+}
+
+get_package_uid() {
+    local pkg="$1"
+    local line
+    local uid
+    if [ ! -r /data/system/packages.list ]; then
+        log Debug "无法读取 /data/system/packages.list"
+        return 1
+    fi
+    line=$(grep -m1 "^${pkg}[[:space:]]" /data/system/packages.list 2> /dev/null || true)
+    if [ -z "$line" ]; then
+        log Debug "packages.list 中未找到包: $pkg"
+        return 1
+    fi
+
+    uid=$(echo "$line" | awk '{print $2}' 2> /dev/null || true)
+    case "$uid" in
+        '' | *[!0-9]*)
+            uid=$(echo "$line" | awk '{print $(NF-1)}' 2> /dev/null || true)
+            ;;
+    esac
+    case "$uid" in
+        '' | *[!0-9]*)
+            log Debug "包的 UID 格式无效: $pkg"
+            return 1
+            ;;
+        *)
+            echo "$uid"
+            return 0
+            ;;
+    esac
+}
+
 find_packages_uid() {
-  for user_package in ${user_packages_list[@]} ; do
-    user=$(echo ${user_package} | awk -F ':' '{print $1}')
-    package=$(echo ${user_package} | awk -F ':' '{print $2}')
-    uid="$(awk '{if($1=="'${package}'"){print $2}}' /data/system/packages.list)"
-    if [[ -n "${uid}" ]]; then
-      uid_list[${#uid_list[@]}]=$(expr ${user} \* "100000" + ${uid})
-    fi
-  done
+    local out
+    local token
+    local uid_base
+    local final_uid
+    # shellcheck disable=SC2048
+    for token in $*; do
+        local user_prefix=0
+        local package="$token"
+        case "$token" in
+            *:*)
+                user_prefix=$(echo "$token" | cut -d: -f1)
+                package=$(echo "$token" | cut -d: -f2-)
+                case "$user_prefix" in
+                    '' | *[!0-9]*)
+                        log Warn "token 中的用户前缀无效: $token，使用 0"
+                        user_prefix=0
+                        ;;
+                esac
+                ;;
+        esac
+        if uid_base=$(get_package_uid "$package" 2> /dev/null); then
+            final_uid=$((user_prefix * 100000 + uid_base))
+            out="$out $final_uid"
+            log Debug "将包 $token 解析为 UID $final_uid"
+        else
+            log Warn "解析包 UID 失败: $package"
+        fi
+    done
+    echo "$out" | awk '{$1=$1;print}'
 }
 
-probe_user_group() {
-  if bin_pid=$(busybox pidof ${bin_name}) ; then
-    box_user=$(stat -c %U /proc/${bin_pid})
-    box_group=$(stat -c %G /proc/${bin_pid})
-    return 0
-  else
-    box_user=$(echo ${box_user_group} | awk -F ':' '{print $1}')
-    box_group=$(echo ${box_user_group} | awk -F ':' '{print $2}')
+safe_chain_exists() {
+    local family="$1"
+    local table="$2"
+    local chain="$3"
+    local cmd="iptables"
+
+    if [ "$family" = "6" ]; then
+        cmd="ip6tables"
+    fi
+
+    if $cmd -t "$table" -L "$chain" > /dev/null 2>&1; then
+        return 0
+    fi
+
     return 1
-  fi
 }
 
-start_redirect() {
-  ${iptables} -t nat -N BOX_EXTERNAL
-  ${iptables} -t nat -F BOX_EXTERNAL
-  ${iptables} -t nat -N BOX_LOCAL
-  ${iptables} -t nat -F BOX_LOCAL
+safe_chain_create() {
+    local family="$1"
+    local table="$2"
+    local chain="$3"
+    local cmd="iptables"
 
-  if [ "${bin_name}" = "clash" ] ; then
-    ${iptables} -t nat -A BOX_EXTERNAL -p udp --dport 53 -j REDIRECT --to-ports ${clash_dns_port}
-    ${iptables} -t nat -A BOX_LOCAL -p udp --dport 53 -j REDIRECT --to-ports ${clash_dns_port}
-    ${iptables} -t nat -A BOX_EXTERNAL -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
-    ${iptables} -t nat -A BOX_LOCAL -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
-#  else
-#    Other types of inbound should be added here to receive DNS traffic instead of sniffing
-#    ${iptables} -t nat -A BOX_EXTERNAL -p udp --dport 53 -j REDIRECT --to-ports ${redir_port}
-#    ${iptables} -t nat -A BOX_LOCAL -p udp --dport 53 -j REDIRECT --to-ports ${redir_port}
-  fi
-
-  for subnet in ${intranet[@]} ; do
-    ${iptables} -t nat -A BOX_EXTERNAL -d ${subnet} -j RETURN
-    ${iptables} -t nat -A BOX_LOCAL -d ${subnet} -j RETURN
-    ${iptables} -t nat -N LOCAL_IP_V4
-    ${iptables} -t nat -F LOCAL_IP_V4
-    ${iptables} -t nat -A BOX_EXTERNAL -j LOCAL_IP_V4
-    ${iptables} -t nat -A BOX_LOCAL -j LOCAL_IP_V4
-  done
-
-  ${iptables} -t nat -A BOX_EXTERNAL -p tcp -i lo -j REDIRECT --to-ports ${redir_port}
-
-  if [ "${ap_list}" != "" ] ; then
-    for ap in ${ap_list[@]} ; do
-      ${iptables} -t nat -A BOX_EXTERNAL -p tcp -i ${ap} -j REDIRECT --to-ports ${redir_port}
-    done
-    log Info "${ap_list[*]} transparent proxy."
-  fi
-
-  ${iptables} -t nat -I PREROUTING -j BOX_EXTERNAL
-
-
-  ${iptables} -t nat -I BOX_LOCAL -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j RETURN
-
-  if [ "${ignore_out_list}" != "" ] ; then
-    for ignore in ${ignore_out_list[@]} ; do
-      ${iptables} -t nat -A BOX_LOCAL -o ${ignore} -j RETURN
-    done
-    log Info "${ignore_out_list[*]} ignore transparent proxy."
-  fi
-
-  if [ "${proxy_mode}" = "blacklist" ] ; then
-    if [ "${uid_list}" = "" ] ; then
-      # Route Everything
-      ${iptables} -t nat -A BOX_LOCAL -p tcp -j REDIRECT --to-ports ${redir_port}
-      log Info "transparent proxy for all apps."
-    else
-      # Bypass apps
-      for appid in ${uid_list[@]} ; do
-        ${iptables} -t nat -A BOX_LOCAL -m owner --uid-owner ${appid} -j RETURN
-      done
-      # Allow !app
-      ${iptables} -t nat -A BOX_LOCAL -p tcp -j REDIRECT --to-ports ${redir_port}
-      log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} no transparent proxy."
+    if [ "$family" = "6" ]; then
+        cmd="ip6tables"
     fi
-    if [ "${gid_list}" != "" ] ; then
-      # Bypass gids
-      for gid in ${gid_list[@]} ; do
-        ${iptables} -t nat -A BOX_LOCAL -m owner --gid-owner ${gid} -j RETURN
-      done
-      log Info "proxy mode: ${proxy_mode}, GID ${gid_list[*]} no transparent proxy."
-    fi
-  elif [ "${proxy_mode}" = "whitelist" ] ; then
-    if [ "${uid_list}" != "" ] ; then
-      # Route apps to Box
-      for appid in ${uid_list[@]} ; do
-        ${iptables} -t nat -A BOX_LOCAL -p tcp -m owner --uid-owner ${appid} -j REDIRECT --to-ports ${redir_port}
-      done
-      ${iptables} -t nat -A BOX_LOCAL -p tcp -m owner --uid-owner 0 -j REDIRECT --to-ports ${redir_port}
-      ${iptables} -t nat -A BOX_LOCAL -p tcp -m owner --uid-owner 1052 -j REDIRECT --to-ports ${redir_port}
-      log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} transparent proxy."
-    fi
-    if [ "${gid_list}" != "" ] ; then
-      # Route gids to Box
-      for gid in ${gid_list[@]} ; do
-        ${iptables} -t nat -A BOX_LOCAL -p tcp -m owner --gid-owner ${gid} -j REDIRECT --to-ports ${redir_port}
-      done
-      log Info "proxy mode: ${proxy_mode}, GID ${gid_list[*]} transparent proxy."
-    fi
-  else
-    log Warn "proxy mode: ${proxy_mode} error."
-    # Route Everything
-    ${iptables} -t nat -A BOX_LOCAL -p tcp -j REDIRECT --to-ports ${redir_port}
-    log Info "transparent proxy for all apps."
-  fi
 
-  ${iptables} -t nat -I OUTPUT -j BOX_LOCAL
+    if [ "$DRY_RUN" -eq 1 ] || ! safe_chain_exists "$family" "$table" "$chain"; then
+        $cmd -t "$table" -N "$chain"
+    fi
 
-  ${iptables} -A OUTPUT -d 127.0.0.1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${redir_port} -j REJECT
+    $cmd -t "$table" -F "$chain"
 }
 
-stop_redirect() {
-  ${iptables} -t nat -D PREROUTING -j BOX_EXTERNAL
-
-  ${iptables} -t nat -D OUTPUT -j BOX_LOCAL
-
-  ${iptables} -D OUTPUT -d 127.0.0.1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${redir_port} -j REJECT
-  ${iptables} -D OUTPUT -d 127.0.0.1 -p tcp -m owner --uid-owner 0 --gid-owner 3005 -m tcp --dport ${redir_port} -j REJECT
-
-
-  ${iptables} -t nat -F BOX_EXTERNAL
-  ${iptables} -t nat -X BOX_EXTERNAL
-  ${iptables} -t nat -F BOX_LOCAL
-  ${iptables} -t nat -X BOX_LOCAL
-  ${iptables} -t nat -F LOCAL_IP_V4
-  ${iptables} -t nat -X LOCAL_IP_V4
-}
-
-start_tproxy() {
-  if [ "${iptables}" = "ip6tables -w 100" ] ; then
-    ip -6 rule add fwmark ${mark_id} table ${table_id} pref ${table_id}
-    ip -6 route add local default dev lo table ${table_id}
-  else
-    ip rule add fwmark ${mark_id} table ${table_id} pref ${table_id}
-    ip route add local default dev lo table ${table_id}
-  fi
-
-  ${iptables} -t mangle -N BOX_EXTERNAL
-  ${iptables} -t mangle -F BOX_EXTERNAL
-
-  # Bypass box itself
-  # ${iptables} -t mangle -A BOX_EXTERNAL -m mark --mark ${routing_mark} -j RETURN
-
-  # Bypass other if
-  # Notice: Some interface is named with r_ / oem / nm_ / qcom_
-  # It might need more complicated solution.
-  # ${iptables} -t mangle -A BOX_EXTERNAL -i rmnet_data+ -j RETURN
-  # ${iptables} -t mangle -A BOX_EXTERNAL -i ccmni+ -j RETURN
-
-  if [ "${mihome_dns_forward}" = "true" ] && [ "${bin_name}" = "mihomo" ] || [ "${bin_name}" = "hysteria" ] || [ "${bin_name}" = "clash" ] ; then
-    ${iptables} -t mangle -A BOX_EXTERNAL -p tcp --dport 53 -j RETURN
-    ${iptables} -t mangle -A BOX_EXTERNAL -p udp --dport 53 -j RETURN
-  else
-    # Route DNS request to Box
-    ${iptables} -t mangle -A BOX_EXTERNAL -p tcp --dport 53 -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
-    ${iptables} -t mangle -A BOX_EXTERNAL -p udp --dport 53 -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
-  fi
-
-  # Skip traffic already handled by TProxy
-  # If the interface of the default route has a public IPv4 or IPv6 address assigned by the ISP, omitting these rules will result in abnormal proxy behavior for local traffic
-  ${iptables} -t mangle -A BOX_EXTERNAL -p tcp -m socket --transparent -j MARK --set-xmark ${mark_id}
-  ${iptables} -t mangle -A BOX_EXTERNAL -p udp -m socket --transparent -j MARK --set-xmark ${mark_id}
-  ${iptables} -t mangle -A BOX_EXTERNAL -m socket -j RETURN
-
-  # Bypass intranet
-  # Run `su -c 'zcat /proc/config.gz | grep -i addrtype'` to check compatibility
-  # ${iptables} -t mangle -A BOX_EXTERNAL -m addrtype --dst-type LOCAL -j RETURN
-  if [ "${iptables}" = "ip6tables -w 100" ] ; then
-    for subnet6 in ${intranet6[@]} ; do
-      ${iptables} -t mangle -A BOX_EXTERNAL -d ${subnet6} -j RETURN
-    done
-    ${iptables} -t mangle -N LOCAL_IP_V6
-    ${iptables} -t mangle -F LOCAL_IP_V6
-    ${iptables} -t mangle -A BOX_EXTERNAL -j LOCAL_IP_V6
-  else
-    for subnet in ${intranet[@]} ; do
-      ${iptables} -t mangle -A BOX_EXTERNAL -d ${subnet} -j RETURN
-    done
-    ${iptables} -t mangle -N LOCAL_IP_V4
-    ${iptables} -t mangle -F LOCAL_IP_V4
-    ${iptables} -t mangle -A BOX_EXTERNAL -j LOCAL_IP_V4
-  fi
-
-  ${iptables} -t mangle -A BOX_EXTERNAL -p tcp -i lo -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
-  ${iptables} -t mangle -A BOX_EXTERNAL -p udp -i lo -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
-
-  # Allow ap interface
-  # Notice: Old android device may only have one wlan interface.
-  # Some new android device have multiple wlan interface like wlan0(for internet), wlan1(for AP).
-  if [ "${ap_list}" != "" ] ; then
-    for ap in ${ap_list[@]} ; do
-      ${iptables} -t mangle -A BOX_EXTERNAL -p tcp -i ${ap} -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
-      ${iptables} -t mangle -A BOX_EXTERNAL -p udp -i ${ap} -j TPROXY --on-port ${tproxy_port} --tproxy-mark ${mark_id}
-    done
-    log Info "${ap_list[*]} transparent proxy."
-  fi
-
-  ${iptables} -t mangle -I PREROUTING -j BOX_EXTERNAL
-
-
-  ${iptables} -t mangle -N BOX_LOCAL
-  ${iptables} -t mangle -F BOX_LOCAL
-
-  # Bypass box itself
-  ${iptables} -t mangle -A BOX_LOCAL -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j RETURN
-  # ${iptables} -t mangle -A BOX_LOCAL -m mark --mark ${routing_mark} -j RETURN
-
-  # Bypass ignored interfaces
-  if [ "${ignore_out_list}" != "" ] ; then
-    for ignore in ${ignore_out_list[@]} ; do
-      ${iptables} -t mangle -A BOX_LOCAL -o ${ignore} -j RETURN
-    done
-    log Info "${ignore_out_list[*]} ignore transparent proxy."
-  fi
-
-  if [ "${mihome_dns_forward}" = "true" ] && [ "${bin_name}" = "mihomo" ] || [ "${bin_name}" = "hysteria" ] || [ "${bin_name}" = "clash" ] ; then
-    ${iptables} -t mangle -A BOX_LOCAL -p tcp --dport 53 -j RETURN
-    ${iptables} -t mangle -A BOX_LOCAL -p udp --dport 53 -j RETURN
-  else
-    # Route DNS request to Box
-    ${iptables} -t mangle -A BOX_LOCAL -p tcp --dport 53 -j MARK --set-xmark ${mark_id}
-    ${iptables} -t mangle -A BOX_LOCAL -p udp --dport 53 -j MARK --set-xmark ${mark_id}
-  fi
-  # Bypass intranet
-  # ${iptables} -t mangle -A BOX_LOCAL -m addrtype --dst-type LOCAL -j RETURN
-  if [ "${iptables}" = "ip6tables -w 100" ] ; then
-    for subnet6 in ${intranet6[@]} ; do
-      ${iptables} -t mangle -A BOX_LOCAL -d ${subnet6} -j RETURN
-    done
-    ${iptables} -t mangle -A BOX_LOCAL -j LOCAL_IP_V6
-  else
-    for subnet in ${intranet[@]} ; do
-      ${iptables} -t mangle -A BOX_LOCAL -d ${subnet} -j RETURN
-    done
-    ${iptables} -t mangle -A BOX_LOCAL -j LOCAL_IP_V4
-  fi
-
-  # Disable kernel
-  # ${iptables} -t mangle -A BOX_LOCAL -m owner ! --uid 0-99999999 -j DROP
-
-  if [ "${proxy_mode}" = "blacklist" ] ; then
-    if [ "${uid_list}" = "" ] ; then
-      # Route Everything
-      ${iptables} -t mangle -A BOX_LOCAL -p tcp -j MARK --set-xmark ${mark_id}
-      ${iptables} -t mangle -A BOX_LOCAL -p udp -j MARK --set-xmark ${mark_id}
-      log Info "transparent proxy for all apps."
-    else
-      # Bypass apps
-      for appid in ${uid_list[@]} ; do
-        ${iptables} -t mangle -A BOX_LOCAL -m owner --uid-owner ${appid} -j RETURN
-      done
-      # Allow !app
-      ${iptables} -t mangle -A BOX_LOCAL -p tcp -j MARK --set-xmark ${mark_id}
-      ${iptables} -t mangle -A BOX_LOCAL -p udp -j MARK --set-xmark ${mark_id}
-      log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} no transparent proxy."
+download_cn_ip_list() {
+    if [ "$BYPASS_CN_IP" -eq 0 ]; then
+        log Debug "已禁用大陆 IP 旁路，跳过下载"
+        return 0
     fi
-    if [ "${gid_list}" != "" ] ; then
-      # Bypass gids
-      for gid in ${gid_list[@]} ; do
-        ${iptables} -t mangle -A BOX_LOCAL -m owner --gid-owner ${gid} -j RETURN
-      done
-      log Info "proxy mode: ${proxy_mode}, GID ${gid_list[*]} no transparent proxy."
-    fi
-  elif [ "${proxy_mode}" = "whitelist" ] ; then
-    if [ "${uid_list}" != "" ] ; then
-      # Route apps to Box
-      for appid in ${uid_list[@]} ; do
-        ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --uid-owner ${appid} -j MARK --set-xmark ${mark_id}
-        ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --uid-owner ${appid} -j MARK --set-xmark ${mark_id}
-      done
-      ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --uid-owner 0 -j MARK --set-xmark ${mark_id}
-      ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --uid-owner 0 -j MARK --set-xmark ${mark_id}
-      # Route dnsmasq to Box
-      ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --uid-owner 1052 -j MARK --set-xmark ${mark_id}
-      ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --uid-owner 1052 -j MARK --set-xmark ${mark_id}
-      log Info "proxy mode: ${proxy_mode}, ${user_packages_list[*]} transparent proxy."
-    fi
-    if [ "${gid_list}" != "" ] ; then
-      # Route gids to Box
-      for gid in ${gid_list[@]} ; do
-        ${iptables} -t mangle -A BOX_LOCAL -p tcp -m owner --gid-owner ${gid} -j MARK --set-xmark ${mark_id}
-        ${iptables} -t mangle -A BOX_LOCAL -p udp -m owner --gid-owner ${gid} -j MARK --set-xmark ${mark_id}
-      done
-      log Info "proxy mode: ${proxy_mode}, GID ${gid_list[*]} transparent proxy."
-    fi
-  else
-    log Warn "proxy mode: ${proxy_mode} error."
-    # Route Everything
-    ${iptables} -t mangle -A BOX_LOCAL -p tcp -j MARK --set-xmark ${mark_id}
-    ${iptables} -t mangle -A BOX_LOCAL -p udp -j MARK --set-xmark ${mark_id}
-    log Info "transparent proxy for all apps."
-  fi
 
-  ${iptables} -t mangle -I OUTPUT -j BOX_LOCAL
+    log Info "检查/下载中国大陆 IP 列表到 $CN_IP_FILE"
 
-
-  # ${iptables} -t mangle -N DIVERT
-  # ${iptables} -t mangle -F DIVERT
-
-  # ${iptables} -t mangle -A DIVERT -j MARK --set-xmark ${mark_id}
-  # ${iptables} -t mangle -A DIVERT -j ACCEPT
-
-  # ${iptables} -t mangle -I PREROUTING -p tcp -m socket -j DIVERT
-
-
-  # This rule blocks local access to tproxy-port to prevent traffic loopback.
-  if [ "${iptables}" = "ip6tables -w 100" ] ; then
-    ${iptables} -A OUTPUT -d ::1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${tproxy_port} -j REJECT
-  else
-    ${iptables} -A OUTPUT -d 127.0.0.1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${tproxy_port} -j REJECT
-  fi
-
-
-  if [ "${mihome_dns_forward}" = "true" ] && [ "${bin_name}" = "mihomo" ] || [ "${bin_name}" = "clash" ] ; then
-    if [ "${iptables}" = "iptables -w 100" ] ; then
-      # android ip6tablses no nat table
-      ${iptables} -t nat -N CLASH_DNS_EXTERNAL
-      ${iptables} -t nat -F CLASH_DNS_EXTERNAL
-
-      ${iptables} -t nat -A CLASH_DNS_EXTERNAL -p udp --dport 53 -j REDIRECT --to-ports ${clash_dns_port}
-
-      ${iptables} -t nat -I PREROUTING -j CLASH_DNS_EXTERNAL
-
-
-      ${iptables} -t nat -N CLASH_DNS_LOCAL
-      ${iptables} -t nat -F CLASH_DNS_LOCAL
-
-      ${iptables} -t nat -A CLASH_DNS_LOCAL -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j RETURN
-
-      ${iptables} -t nat -A CLASH_DNS_LOCAL -p udp --dport 53 -j REDIRECT --to-ports ${clash_dns_port}
-
-      ${iptables} -t nat -I OUTPUT -j CLASH_DNS_LOCAL
-    fi
-  fi
-
-  # Fix ICMP (ping), this does not guarantee that the ping result is valid (proxies such as clash do not support forwarding ICMP),
-  # just that it returns a result, "--to-destination" can be set to a reachable address
-  iptables -w 100 -t nat -A OUTPUT -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
-  iptables -w 100 -t nat -A PREROUTING -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
-  # ip6tables -w 100 -t nat -A OUTPUT -d ${fake_ip_range_v6} -p icmp -j DNAT --to-destination ::1
-  # ip6tables -w 100 -t nat -A PREROUTING -d ${fake_ip_range_v6} -p icmp -j DNAT --to-destination ::1
-}
-
-stop_tproxy() {
-  ip -6 rule del fwmark ${mark_id} table ${table_id} pref ${table_id}
-  ip -6 route flush table ${table_id}
-  ip rule del fwmark ${mark_id} table ${table_id} pref ${table_id}
-  ip route flush table ${table_id}
-
-  ${iptables} -t mangle -D PREROUTING -j BOX_EXTERNAL
-    
-  # ${iptables} -t mangle -D PREROUTING -p tcp -m socket -j DIVERT
-
-  ${iptables} -t mangle -D OUTPUT -j BOX_LOCAL
-
-  ${iptables} -t mangle -F BOX_EXTERNAL
-  ${iptables} -t mangle -X BOX_EXTERNAL
-
-  ${iptables} -t mangle -F BOX_LOCAL
-  ${iptables} -t mangle -X BOX_LOCAL
-
-  iptables -t mangle -F LOCAL_IP_V4
-  iptables -t mangle -X LOCAL_IP_V4
-  ip6tables -t mangle -F LOCAL_IP_V6
-  ip6tables -t mangle -X LOCAL_IP_V6
-
-  # ${iptables} -t mangle -F DIVERT
-  # ${iptables} -t mangle -X DIVERT
-
-  if [ "${iptables}" = "ip6tables -w 100" ] ; then
-    ${iptables} -D OUTPUT -d ::1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${tproxy_port} -j REJECT
-    ${iptables} -D OUTPUT -d ::1 -p tcp -m owner --uid-owner 0 --gid-owner 3005 -m tcp --dport ${tproxy_port} -j REJECT
-  else
-    ${iptables} -D OUTPUT -d 127.0.0.1 -p tcp -m owner --uid-owner ${box_user} --gid-owner ${box_group} -m tcp --dport ${tproxy_port} -j REJECT
-    ${iptables} -D OUTPUT -d 127.0.0.1 -p tcp -m owner --uid-owner 0 --gid-owner 3005 -m tcp --dport ${tproxy_port} -j REJECT
-  fi
-
-
-  # android ip6tablses no nat table
-  iptables="iptables -w 100"
-  ${iptables} -t nat -D PREROUTING -j CLASH_DNS_EXTERNAL
-
-  ${iptables} -t nat -D OUTPUT -j CLASH_DNS_LOCAL
-
-  ${iptables} -t nat -F CLASH_DNS_EXTERNAL
-  ${iptables} -t nat -X CLASH_DNS_EXTERNAL
-
-  ${iptables} -t nat -F CLASH_DNS_LOCAL
-  ${iptables} -t nat -X CLASH_DNS_LOCAL
-
-  iptables -t nat -D OUTPUT -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
-  iptables -t nat -D PREROUTING -d ${fake_ip_range_v4} -p icmp -j DNAT --to-destination 127.0.0.1
-  # ip6tables -t nat -D OUTPUT -d ${fake_ip_range_v6} -p icmp -j DNAT --to-destination ::1
-  # ip6tables -t nat -D PREROUTING -d ${fake_ip_range_v6} -p icmp -j DNAT --to-destination ::1
-}
-
-disable_ipv6() {
-  echo 0 > /proc/sys/net/ipv6/conf/all/accept_ra
-  echo 0 > /proc/sys/net/ipv6/conf/wlan0/accept_ra
-  echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
-  echo 1 > /proc/sys/net/ipv6/conf/default/disable_ipv6
-  echo 1 > /proc/sys/net/ipv6/conf/wlan0/disable_ipv6
-}
-
-enable_ipv6() {
-  echo 1 > /proc/sys/net/ipv6/conf/all/accept_ra
-  echo 1 > /proc/sys/net/ipv6/conf/wlan0/accept_ra
-  echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
-  echo 0 > /proc/sys/net/ipv6/conf/default/disable_ipv6
-  echo 0 > /proc/sys/net/ipv6/conf/wlan0/disable_ipv6
-}
-
-if [ "${proxy_mode}" = "core" ] ; then
-  iptables="iptables -w 100" && stop_tproxy >> /dev/null 2>&1
-  iptables="ip6tables -w 100" && stop_tproxy >> /dev/null 2>&1
-  iptables="iptables -w 100" && stop_redirect >> /dev/null 2>&1
-  log Info "proxy_mode: ${proxy_mode}, disable transparent proxy."
-  return 0
-fi
-
-case "$1" in
-  enable)
-    iptables="iptables -w 100" && stop_tproxy >> /dev/null 2>&1
-    iptables="ip6tables -w 100" && stop_tproxy >> /dev/null 2>&1
-    iptables="iptables -w 100" && stop_redirect >> /dev/null 2>&1
-    sleep 1
-    if ! probe_user_group ; then
-      log Error "failed to check Box user group, please make sure ${bin_name} core is started."
-      return 1
-    fi
-    find_packages_uid
-    intranet[${#intranet[@]}]=$(ip -4 a | awk '/inet/ {print $2}' | grep -vE "^127.0.0.1")
-    if [ "${proxy_method}" = "TPROXY" ] ; then
-      if (zcat /proc/config.gz | grep -q TPROXY) ; then
-        log Info "use TPROXY:TCP+UDP."
-        log Info "creating ip(6)tables transparent proxy rules."
-        iptables="iptables -w 100"
-        start_tproxy && log Info "create iptables transparent proxy rules done." || (log Error "create iptables transparent proxy rules failed." && stop_tproxy >> /dev/null 2>&1)
-        if [ "${ipv6}" = "enable" ] ; then
-          log Debug "use IPv6."
-          enable_ipv6
-          iptables="ip6tables -w 100"
-          intranet6[${#intranet6[@]}]=$(ip -6 a | awk '/inet6/ {print $2}' | grep -vE "^fe80|^::1")
-          start_tproxy && log Info "create ip6tables transparent proxy rules done." || (log Error "create ip6tables transparent proxy rules failed." && stop_tproxy >> /dev/null 2>&1)
+    # 若文件不存在或超过 7 天则重新下载
+    if [ ! -f "$CN_IP_FILE" ] || [ "$(find "$CN_IP_FILE" -mtime +7 2> /dev/null)" ]; then
+        log Info "从 $CN_IP_URL 获取最新中国大陆 IP 列表"
+        if [ "$DRY_RUN" -eq 1 ]; then
+            log Debug "[DRY-RUN] curl -fsSL --connect-timeout 10 --retry 3 $CN_IP_URL -o $CN_IP_FILE.tmp"
         else
-          disable_ipv6
-          log Warn "disable IPv6."
+            if ! curl -fsSL --connect-timeout 10 --retry 3 \
+                "$CN_IP_URL" \
+                -o "$CN_IP_FILE.tmp"; then
+                log Error "下载中国大陆 IP 列表失败"
+                rm -f "$CN_IP_FILE.tmp"
+                return 1
+            fi
         fi
-      else
-        log Warn "the device does not support TPROXY, please switch proxy_method."
-        log Info "use REDIRECT:TCP."
-        log Info "creating iptables transparent proxy rules."
-        iptables="iptables -w 100"
-        start_redirect && log Info "create iptables transparent proxy rules done." || (log Error "create iptables transparent proxy rules failed." && stop_redirect >> /dev/null 2>&1)
-        [ "${ipv6}" = "enable" ] && enable_ipv6 && log Warn "enable IPv6." || (disable_ipv6 && log Warn "disable IPv6.")
-      fi
+        if [ "$DRY_RUN" -eq 0 ]; then
+            mv "$CN_IP_FILE.tmp" "$CN_IP_FILE"
+        fi
+        log Info "中国大陆 IP 列表已保存到 $CN_IP_FILE"
     else
-      [ "${proxy_method}" = "REDIRECT" ] && log Info "use REDIRECT:TCP." || log Info "use MIXED:TCP+TUN."
-      log Info "creating iptables transparent proxy rules."
-      iptables="iptables -w 100"
-      start_redirect && log Info "create iptables transparent proxy rules done." || (log Error "create iptables transparent proxy rules failed." && stop_redirect >> /dev/null 2>&1)
-      [ "${ipv6}" = "enable" ] && enable_ipv6 && log Warn "enable IPv6." || (disable_ipv6 && log Warn "disable IPv6.")
+        log Debug "使用已存在的中国大陆 IP 列表: $CN_IP_FILE"
     fi
-    ;;
-  disable)
-    log Warn "cleaning up ip(6)tables transparent proxy rules."
-    probe_user_group
-    iptables="iptables -w 100" && stop_tproxy >> /dev/null 2>&1
-    iptables="ip6tables -w 100" && stop_tproxy >> /dev/null 2>&1
-    iptables="iptables -w 100" && stop_redirect >> /dev/null 2>&1
-    log Warn "clean up ip(6)tables transparent proxy rules done."
-    enable_ipv6
-    log Warn "enable IPv6."
+
+    if [ "$PROXY_IPV6" -eq 1 ]; then
+        log Info "检查/下载中国大陆 IPv6 列表到 $CN_IPV6_FILE"
+
+        if [ ! -f "$CN_IPV6_FILE" ] || [ "$(find "$CN_IPV6_FILE" -mtime +7 2> /dev/null)" ]; then
+            log Info "从 $CN_IPV6_URL 获取最新中国大陆 IPv6 列表"
+            if [ "$DRY_RUN" -eq 1 ]; then
+                log Debug "[DRY-RUN] curl -fsSL --connect-timeout 10 --retry 3 $CN_IPV6_URL -o $CN_IPV6_FILE.tmp"
+            else
+                if ! curl -fsSL --connect-timeout 10 --retry 3 \
+                    "$CN_IPV6_URL" \
+                    -o "$CN_IPV6_FILE.tmp"; then
+                    log Error "下载中国大陆 IPv6 列表失败"
+                    rm -f "$CN_IPV6_FILE.tmp"
+                    return 1
+                fi
+            fi
+            if [ "$DRY_RUN" -eq 0 ]; then
+                mv "$CN_IPV6_FILE.tmp" "$CN_IPV6_FILE"
+            fi
+            log Info "中国大陆 IPv6 列表已保存到 $CN_IPV6_FILE"
+        else
+            log Debug "使用已存在的中国大陆 IPv6 列表: $CN_IPV6_FILE"
+        fi
+    fi
+}
+
+setup_cn_ipset() {
+    if [ "$BYPASS_CN_IP" -eq 0 ]; then
+        log Debug "已禁用大陆 IP 旁路，跳过 ipset 设置"
+        return 0
+    fi
+
+    if ! command -v ipset > /dev/null 2>&1; then
+        log Error "未找到 ipset，无法旁路大陆 IP"
+        return 1
+    fi
+
+    log Info "为中国大陆 IP 设置 ipset"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ipset destroy cnip"
+        log Debug "[DRY-RUN] ipset destroy cnip6"
+    else
+        ipset destroy cnip 2> /dev/null || true
+        ipset destroy cnip6 2> /dev/null || true
+    fi
+
+    if [ -f "$CN_IP_FILE" ]; then
+        log Debug "从 $CN_IP_FILE 加载 IPv4 CIDR"
+        ipv4_count=$(wc -l < "$CN_IP_FILE" 2> /dev/null || echo "0")
+
+        if [ "$DRY_RUN" -eq 1 ]; then
+            log Debug "[DRY-RUN] 将通过 ipset restore 加载 $ipv4_count 条 IPv4 CIDR"
+            log Debug "[DRY-RUN] ipset create cnip hash:net family inet hashsize 8192 maxelem 65536"
+        else
+            temp_file=$(mktemp)
+            {
+                echo "create cnip hash:net family inet hashsize 8192 maxelem 65536"
+                awk '!/^[[:space:]]*#/ && NF > 0 {printf "add cnip %s\n", $0}' "$CN_IP_FILE"
+            } > "$temp_file"
+
+            if ipset restore -f "$temp_file" 2> /dev/null; then
+                log Info "成功加载 $ipv4_count 条 IPv4 CIDR"
+            else
+                log Error "创建 ipset 'cnip' 或加载 IPv4 CIDR 失败"
+                rm -f "$temp_file"
+                return 1
+            fi
+            rm -f "$temp_file"
+        fi
+    else
+        log Warn "未找到中国大陆 IP 文件: $CN_IP_FILE"
+        return 1
+    fi
+
+    log Info "ipset 'cnip' 已加载中国大陆 IPv4"
+
+    if [ "$PROXY_IPV6" -eq 1 ]; then
+        if [ -f "$CN_IPV6_FILE" ]; then
+            log Debug "从 $CN_IPV6_FILE 加载 IPv6 CIDR"
+            ipv6_count=$(wc -l < "$CN_IPV6_FILE" 2> /dev/null || echo "0")
+
+            if [ "$DRY_RUN" -eq 1 ]; then
+                log Debug "[DRY-RUN] 将通过 ipset restore 加载 $ipv6_count 条 IPv6 CIDR"
+                log Debug "[DRY-RUN] ipset create cnip6 hash:net family inet6 hashsize 8192 maxelem 65536"
+            else
+                temp_file6=$(mktemp)
+                {
+                    echo "create cnip6 hash:net family inet6 hashsize 8192 maxelem 65536"
+                    awk '!/^[[:space:]]*#/ && NF > 0 {printf "add cnip6 %s\n", $0}' "$CN_IPV6_FILE"
+                } > "$temp_file6"
+
+                if ipset restore -f "$temp_file6" 2> /dev/null; then
+                    log Info "成功加载 $ipv6_count 条 IPv6 CIDR"
+                else
+                    log Error "创建 ipset 'cnip6' 或加载 IPv6 CIDR 失败"
+                    rm -f "$temp_file6"
+                    return 1
+                fi
+                rm -f "$temp_file6"
+            fi
+            log Info "ipset 'cnip6' 已加载中国大陆 IPv6 IP"
+        else
+            log Warn "未找到中国大陆 IPv6 文件: $CN_IPV6_FILE"
+        fi
+    fi
+
     return 0
-    ;;
-  renew)
-    log Warn "cleaning up ip(6)tables transparent proxy rules."
-    iptables="iptables -w 100" && stop_tproxy >> /dev/null 2>&1
-    iptables="ip6tables -w 100" && stop_tproxy >> /dev/null 2>&1
-    iptables="iptables -w 100" && stop_redirect >> /dev/null 2>&1
-    log Warn "clean up ip(6)tables transparent proxy rules done."
-    sleep 3
-    if ! probe_user_group ; then
-      log Error "failed to check Box user group, please make sure ${bin_name} core is started."
-      return 1
+}
+
+# 面向 IPv4/IPv6 的统一设置函数，带模式选择
+setup_proxy_chain() {
+    local family="$1"
+    local mode="$2" # tproxy 或 redirect
+    local suffix=""
+    local mark="$MARK_VALUE"
+    local cmd="iptables"
+
+    if [ "$family" = "6" ]; then
+        suffix="6"
+        mark="$MARK_VALUE6"
+        cmd="ip6tables"
     fi
-    find_packages_uid
-    intranet[${#intranet[@]}]=$(ip -4 a | awk '/inet/ {print $2}' | grep -vE "^127.0.0.1")
-    if [ "${proxy_method}" = "TPROXY" ] ; then
-      if (zcat /proc/config.gz | grep -q TPROXY) ; then
-        log Info "use TPROXY:TCP+UDP."
-        log Info "creating ip(6)tables transparent proxy rules."
-        iptables="iptables -w 100"
-        start_tproxy && log Info "create iptables transparent proxy rules done." || (log Error "create iptables transparent proxy rules failed." && stop_tproxy >> /dev/null 2>&1)
-        if [ "${ipv6}" = "enable" ] ; then
-          log Debug "use IPv6."
-          enable_ipv6
-          iptables="ip6tables -w 100"
-          intranet6[${#intranet6[@]}]=$(ip -6 a | awk '/inet6/ {print $2}' | grep -vE "^fe80|^::1")
-          start_tproxy && log Info "create ip6tables transparent proxy rules done." || (log Error "create ip6tables transparent proxy rules failed." && stop_tproxy >> /dev/null 2>&1)
-        else
-          disable_ipv6
-          log Warn "disable IPv6."
-        fi
-      else
-        log Warn "the device does not support TPROXY, please switch proxy_method."
-        log Info "use REDIRECT:TCP."
-        log Info "creating iptables transparent proxy rules."
-        iptables="iptables -w 100"
-        start_redirect && log Info "create iptables transparent proxy rules done." || (log Error "create iptables transparent proxy rules failed." && stop_redirect >> /dev/null 2>&1)
-        [ "${ipv6}" = "enable" ] && enable_ipv6 && log Warn "enable IPv6." || (disable_ipv6 && log Warn "disable IPv6.")
-      fi
+
+    # 设置日志用的模式名称
+    local mode_name="$mode"
+    if [ "$mode" = "tproxy" ]; then
+        mode_name="TPROXY"
     else
-      [ "${proxy_method}" = "REDIRECT" ] && log Info "use REDIRECT:TCP." || log Info "use MIXED:TCP+TUN."
-      log Info "creating iptables transparent proxy rules."
-      iptables="iptables -w 100"
-      start_redirect && log Info "create iptables transparent proxy rules done." || (log Error "create iptables transparent proxy rules failed." && stop_redirect >> /dev/null 2>&1)
-      [ "${ipv6}" = "enable" ] && enable_ipv6 && log Warn "enable IPv6." || (disable_ipv6 && log Warn "disable IPv6.")
+        mode_name="REDIRECT"
     fi
-    ;;
-  enable_ipv6)
-    enable_ipv6
-    log Warn "enable IPv6."
-    ;;
-  disable_ipv6)
-    disable_ipv6
-    log Warn "disable IPv6."
-    ;;
-  *)
-    log Error "$0 $1 usage: $0 {enable|disable|renew|enable_ipv6|disable_ipv6}"
-    ;;
-esac
+
+    log Info "为 IPv${family} 设置 $mode_name 链"
+
+    # 根据协议族定义链
+    local chains=""
+    if [ "$family" = "6" ]; then
+        chains="PROXY_PREROUTING6 PROXY_OUTPUT6 BYPASS_IP6 BYPASS_INTERFACE6 PROXY_INTERFACE6 DNS_HIJACK_PRE6 DNS_HIJACK_OUT6 APP_CHAIN6 MAC_CHAIN6"
+    else
+        chains="PROXY_PREROUTING PROXY_OUTPUT BYPASS_IP BYPASS_INTERFACE PROXY_INTERFACE DNS_HIJACK_PRE DNS_HIJACK_OUT APP_CHAIN MAC_CHAIN"
+    fi
+
+    local table="mangle"
+    if [ "$mode" = "redirect" ]; then
+        table="nat"
+    fi
+
+    # 创建链
+    for c in $chains; do
+        safe_chain_create "$family" "$table" "$c"
+    done
+
+    $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -j "BYPASS_IP$suffix"
+    $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -j "PROXY_INTERFACE$suffix"
+    $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -j "MAC_CHAIN$suffix"
+    $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -j "DNS_HIJACK_PRE$suffix"
+
+    $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j "BYPASS_IP$suffix"
+    $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j "BYPASS_INTERFACE$suffix"
+    $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j "APP_CHAIN$suffix"
+    $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j "DNS_HIJACK_OUT$suffix"
+
+    if check_kernel_feature "NETFILTER_XT_MATCH_ADDRTYPE"; then
+        $cmd -t "$table" -A "BYPASS_IP$suffix" -m addrtype --dst-type LOCAL -p udp ! --dport 53 -j ACCEPT
+        $cmd -t "$table" -A "BYPASS_IP$suffix" -m addrtype --dst-type LOCAL ! -p udp -j ACCEPT
+        log Info "已添加本地地址类型旁路"
+    fi
+
+    # 按协议族添加私网地址段
+    if [ "$family" = "6" ]; then
+        for subnet6 in ::/128 ::1/128 ::ffff:0:0/96 \
+            100::/64 64:ff9b::/96 2001::/32 2001:10::/28 \
+            2001:20::/28 2001:db8::/32 \
+            2002::/16 fe80::/10 ff00::/8; do
+            $cmd -t "$table" -A "BYPASS_IP$suffix" -d "$subnet6" -p udp ! --dport 53 -j ACCEPT
+            $cmd -t "$table" -A "BYPASS_IP$suffix" -d "$subnet6" ! -p udp -j ACCEPT
+        done
+    else
+        for subnet4 in 0.0.0.0/8 10.0.0.0/8 100.0.0.0/8 127.0.0.0/8 \
+            169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 192.88.99.0/24 \
+            192.168.0.0/16 198.51.100.0/24 203.0.113.0/24 \
+            224.0.0.0/4 240.0.0.0/4 255.255.255.255/32; do
+            $cmd -t "$table" -A "BYPASS_IP$suffix" -d "$subnet4" -p udp ! --dport 53 -j ACCEPT
+            $cmd -t "$table" -A "BYPASS_IP$suffix" -d "$subnet4" ! -p udp -j ACCEPT
+        done
+    fi
+    log Info "已添加私网地址段旁路规则"
+
+    if [ "$BYPASS_CN_IP" -eq 1 ]; then
+        ipset_name="cnip"
+        if [ "$family" = "6" ]; then
+            ipset_name="cnip6"
+        fi
+        if command -v ipset > /dev/null 2>&1 && ipset list "$ipset_name" > /dev/null 2>&1; then
+            $cmd -t "$table" -A "BYPASS_IP$suffix" -m set --match-set "$ipset_name" dst -p udp ! --dport 53 -j ACCEPT
+            $cmd -t "$table" -A "BYPASS_IP$suffix" -m set --match-set "$ipset_name" dst ! -p udp -j ACCEPT
+            log Info "已添加基于 ipset 的大陆 IP 旁路规则"
+        else
+            log Warn "ipset '$ipset_name' 不可用，跳过大陆 IP 旁路"
+        fi
+    fi
+
+    log Info "正在配置接口代理规则"
+    $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i lo -j RETURN
+    if [ "$PROXY_MOBILE" -eq 1 ]; then
+        $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$MOBILE_INTERFACE" -j RETURN
+        log Info "移动数据接口 $MOBILE_INTERFACE 将被代理"
+    else
+        $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$MOBILE_INTERFACE" -j ACCEPT
+        $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$MOBILE_INTERFACE" -j ACCEPT
+        log Info "移动数据接口 $MOBILE_INTERFACE 将旁路代理"
+    fi
+    if [ "$PROXY_WIFI" -eq 1 ]; then
+        $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$WIFI_INTERFACE" -j RETURN
+        log Info "WiFi 接口 $WIFI_INTERFACE 将被代理"
+    else
+        $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$WIFI_INTERFACE" -j ACCEPT
+        $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$WIFI_INTERFACE" -j ACCEPT
+        log Info "WiFi 接口 $WIFI_INTERFACE 将旁路代理"
+    fi
+    if [ "$PROXY_HOTSPOT" -eq 1 ]; then
+        if [ "$HOTSPOT_INTERFACE" = "$WIFI_INTERFACE" ]; then
+            local subnet=""
+            if [ "$family" = "6" ]; then
+                subnet="fe80::/10"
+            else
+                subnet="192.168.43.0/24"
+            fi
+            $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$WIFI_INTERFACE" ! -s "$subnet" -j RETURN
+            log Info "热点接口 $WIFI_INTERFACE 将被代理"
+        else
+            $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$HOTSPOT_INTERFACE" -j RETURN
+            log Info "热点接口 $HOTSPOT_INTERFACE 将被代理"
+        fi
+    else
+        $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$HOTSPOT_INTERFACE" -j ACCEPT
+        log Info "热点接口 $HOTSPOT_INTERFACE 将旁路代理"
+    fi
+    if [ "$PROXY_USB" -eq 1 ]; then
+        $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$USB_INTERFACE" -j RETURN
+        log Info "USB 接口 $USB_INTERFACE 将被代理"
+    else
+        $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -i "$USB_INTERFACE" -j ACCEPT
+        $cmd -t "$table" -A "BYPASS_INTERFACE$suffix" -o "$USB_INTERFACE" -j ACCEPT
+        log Info "USB 接口 $USB_INTERFACE 将旁路代理"
+    fi
+    $cmd -t "$table" -A "PROXY_INTERFACE$suffix" -j ACCEPT
+    log Info "接口代理规则配置完成"
+
+    if [ "$MAC_FILTER_ENABLE" -eq 1 ] && [ "$PROXY_HOTSPOT" -eq 1 ] && [ -n "$HOTSPOT_INTERFACE" ]; then
+        if check_kernel_feature "NETFILTER_XT_MATCH_MAC"; then
+            log Info "为接口 $HOTSPOT_INTERFACE 设置 MAC 地址过滤规则"
+            case "$MAC_PROXY_MODE" in
+                blacklist)
+                    if [ -n "$BYPASS_MACS_LIST" ]; then
+                        for mac in $BYPASS_MACS_LIST; do
+                            if [ -n "$mac" ]; then
+                                $cmd -t "$table" -A "MAC_CHAIN$suffix" -m mac --mac-source "$mac" -i "$HOTSPOT_INTERFACE" -j ACCEPT
+                                log Info "添加 MAC 旁路规则 $mac"
+                            fi
+                        done
+                    else
+                        log Warn "MAC 黑名单模式已启用但未配置旁路 MAC"
+                    fi
+                    $cmd -t "$table" -A "MAC_CHAIN$suffix" -i "$HOTSPOT_INTERFACE" -j RETURN
+                    ;;
+                whitelist)
+                    if [ -n "$PROXY_MACS_LIST" ]; then
+                        for mac in $PROXY_MACS_LIST; do
+                            if [ -n "$mac" ]; then
+                                $cmd -t "$table" -A "MAC_CHAIN$suffix" -m mac --mac-source "$mac" -i "$HOTSPOT_INTERFACE" -j RETURN
+                                log Info "添加 MAC 代理规则 $mac"
+                            fi
+                        done
+                    else
+                        log Warn "MAC 白名单模式已启用但未配置代理 MAC"
+                    fi
+                    $cmd -t "$table" -A "MAC_CHAIN$suffix" -i "$HOTSPOT_INTERFACE" -j ACCEPT
+                    ;;
+            esac
+        else
+            log Warn "MAC 过滤需要 NETFILTER_XT_MATCH_MAC 内核特性，当前不可用"
+        fi
+    fi
+
+    if check_kernel_feature "NETFILTER_XT_MATCH_OWNER"; then
+        $cmd -t "$table" -A "APP_CHAIN$suffix" -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT
+        log Info "已为核心用户 $CORE_USER:$CORE_GROUP 添加旁路"
+    elif check_kernel_feature "NETFILTER_XT_MATCH_MARK" && [ -n "$ROUTING_MARK" ]; then
+        $cmd -t "$table" -A "APP_CHAIN$suffix" -m mark --mark "$ROUTING_MARK" -j ACCEPT
+        log Info "已为标记 $ROUTING_MARK 的核心流量添加旁路"
+    else
+        log Warn "未配置核心流量旁路，可能导致流量回环"
+    fi
+
+    if [ "$APP_PROXY_ENABLE" -eq 1 ]; then
+        if check_kernel_feature "NETFILTER_XT_MATCH_OWNER"; then
+            log Info "按应用过滤规则，模式：$APP_PROXY_MODE"
+            case "$APP_PROXY_MODE" in
+                blacklist)
+                    if [ -n "$BYPASS_APPS_LIST" ]; then
+                        uids=$(find_packages_uid "$BYPASS_APPS_LIST" || true)
+                        for uid in $uids; do
+                            if [ -n "$uid" ]; then
+                                $cmd -t "$table" -A "APP_CHAIN$suffix" -m owner --uid-owner "$uid" -j ACCEPT
+                                log Info "已为 UID $uid 添加旁路"
+                            fi
+                        done
+                    else
+                        log Warn "应用黑名单模式启用，但未配置旁路应用"
+                    fi
+                    $cmd -t "$table" -A "APP_CHAIN$suffix" -j RETURN
+                    ;;
+                whitelist)
+                    if [ -n "$PROXY_APPS_LIST" ]; then
+                        uids=$(find_packages_uid "$PROXY_APPS_LIST" || true)
+                        for uid in $uids; do
+                            if [ -n "$uid" ]; then
+                                $cmd -t "$table" -A "APP_CHAIN$suffix" -m owner --uid-owner "$uid" -j RETURN
+                                log Info "已为 UID $uid 添加代理"
+                            fi
+                        done
+                    else
+                        log Warn "应用白名单模式启用，但未配置代理应用"
+                    fi
+                    $cmd -t "$table" -A "APP_CHAIN$suffix" -j ACCEPT
+                    ;;
+            esac
+        else
+            log Warn "应用过滤需要 NETFILTER_XT_MATCH_OWNER 内核特性，当前不可用"
+        fi
+    fi
+
+    if [ "$DNS_HIJACK_ENABLE" -ne 0 ]; then
+        if [ "$mode" = "redirect" ]; then
+            setup_dns_hijack "$family" "redirect"
+        else
+            if [ "$DNS_HIJACK_ENABLE" -eq 2 ]; then
+                setup_dns_hijack "$family" "redirect2"
+            else
+                setup_dns_hijack "$family" "tproxy"
+            fi
+        fi
+    fi
+
+    if [ "$mode" = "tproxy" ]; then
+        $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -p tcp -j TPROXY --on-port "$PROXY_TCP_PORT" --tproxy-mark "$mark"
+        $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -p udp -j TPROXY --on-port "$PROXY_UDP_PORT" --tproxy-mark "$mark"
+        $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j MARK --set-mark "$mark"
+        log Info "已添加 TPROXY 模式规则"
+    else
+        $cmd -t "$table" -A "PROXY_PREROUTING$suffix" -j REDIRECT --to-ports "$PROXY_TCP_PORT"
+        $cmd -t "$table" -A "PROXY_OUTPUT$suffix" -j REDIRECT --to-ports "$PROXY_TCP_PORT"
+        log Info "已添加 REDIRECT 模式规则"
+    fi
+
+    # 加入主链路规则
+    if [ "$PROXY_UDP" -eq 1 ] || [ "$mode" = "redirect" ]; then
+        $cmd -t "$table" -I PREROUTING -p udp -j "PROXY_PREROUTING$suffix"
+        $cmd -t "$table" -I OUTPUT -p udp -j "PROXY_OUTPUT$suffix"
+        log Info "已为 UDP 在 PREROUTING/OUTPUT 中添加规则"
+    fi
+    if [ "$PROXY_TCP" -eq 1 ]; then
+        $cmd -t "$table" -I PREROUTING -p tcp -j "PROXY_PREROUTING$suffix"
+        $cmd -t "$table" -I OUTPUT -p tcp -j "PROXY_OUTPUT$suffix"
+        log Info "已为 TCP 在 PREROUTING/OUTPUT 中添加规则"
+    fi
+
+    log Info "IPv${family} 的 $mode_name 链设置完成"
+}
+
+setup_dns_hijack() {
+    local family="$1"
+    local mode="$2"
+    local suffix=""
+    local mark="$MARK_VALUE"
+    local cmd="iptables"
+
+    if [ "$family" = "6" ]; then
+        suffix="6"
+        mark="$MARK_VALUE6"
+        cmd="ip6tables"
+    fi
+
+    case "$mode" in
+        tproxy)
+            # 在 PREROUTING 链处理来自接口的 DNS（DNS_HIJACK_PRE）
+            $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p tcp --dport 53 -j TPROXY --on-port "$PROXY_TCP_PORT" --tproxy-mark "$mark"
+            $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p udp --dport 53 -j TPROXY --on-port "$PROXY_UDP_PORT" --tproxy-mark "$mark"
+            # 在 OUTPUT 链处理本地 DNS 劫持（DNS_HIJACK_OUT）
+            $cmd -t mangle -A "DNS_HIJACK_OUT$suffix" -p tcp --dport 53 -j MARK --set-mark "$mark"
+            $cmd -t mangle -A "DNS_HIJACK_OUT$suffix" -p udp --dport 53 -j MARK --set-mark "$mark"
+
+            log Info "已使用 TPROXY 模式启用 DNS 劫持"
+            ;;
+        redirect)
+            # 使用 REDIRECT 方式处理 DNS
+            $cmd -t nat -A "DNS_HIJACK_PRE$suffix" -p tcp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
+            $cmd -t nat -A "DNS_HIJACK_PRE$suffix" -p udp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
+            $cmd -t nat -A "DNS_HIJACK_OUT$suffix" -p tcp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
+            $cmd -t nat -A "DNS_HIJACK_OUT$suffix" -p udp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
+
+            log Info "已使用 REDIRECT 模式启用 DNS 劫持到端口 $DNS_PORT"
+            ;;
+        redirect2)
+            # 使用 REDIRECT 方式处理 DNS
+            if [ "$family" = "6" ] && {
+                ! check_kernel_feature "IP6_NF_NAT" || ! check_kernel_feature "IP6_NF_TARGET_REDIRECT"
+            }; then
+                log Warn "IPv6：内核不支持 IPv6 NAT 或 REDIRECT，跳过 IPv6 DNS 劫持"
+                return 0
+            fi
+            safe_chain_create "$family" "nat" "NAT_DNS_HIJACK$suffix"
+            $cmd -t nat -A "NAT_DNS_HIJACK$suffix" -p tcp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
+            $cmd -t nat -A "NAT_DNS_HIJACK$suffix" -p udp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
+
+            [ "$PROXY_MOBILE" -eq 1 ] && $cmd -t nat -A PREROUTING -i "$MOBILE_INTERFACE" -j "NAT_DNS_HIJACK$suffix"
+            [ "$PROXY_WIFI" -eq 1 ] && $cmd -t nat -A PREROUTING -i "$WIFI_INTERFACE" -j "NAT_DNS_HIJACK$suffix"
+            [ "$PROXY_USB" -eq 1 ] && $cmd -t nat -A PREROUTING -i "$USB_INTERFACE" -j "NAT_DNS_HIJACK$suffix"
+
+            $cmd -t nat -A OUTPUT -p udp --dport 53 -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT
+            $cmd -t nat -A OUTPUT -p tcp --dport 53 -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT
+            $cmd -t nat -A OUTPUT -j "NAT_DNS_HIJACK$suffix"
+
+            log Info "已使用 REDIRECT 模式启用 DNS 劫持到端口 $DNS_PORT"
+            ;;
+    esac
+}
+
+setup_tproxy_chain4() {
+    setup_proxy_chain 4 "tproxy"
+}
+
+setup_redirect_chain4() {
+    log Warn "REDIRECT 模式仅支持 TCP"
+    setup_proxy_chain 4 "redirect"
+}
+
+setup_tproxy_chain6() {
+    setup_proxy_chain 6 "tproxy"
+}
+
+setup_redirect_chain6() {
+    if ! check_kernel_feature "IP6_NF_NAT" || ! check_kernel_feature "IP6_NF_TARGET_REDIRECT"; then
+        log Warn "IPv6：内核不支持 IPv6 NAT 或 REDIRECT，跳过 IPv6 代理设置"
+        return 0
+    fi
+    log Warn "REDIRECT 模式仅支持 TCP"
+    setup_proxy_chain 6 "redirect"
+}
+
+setup_routing4() {
+    log Info "正在设置 IPv4 路由规则"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip rule add fwmark $MARK_VALUE lookup $TABLE_ID"
+        log Debug "[DRY-RUN] ip route add local 0.0.0.0/0 dev lo table $TABLE_ID"
+        log Debug "[DRY-RUN] echo 1 > /proc/sys/net/ipv4/ip_forward"
+    else
+        ip_rule del fwmark "$MARK_VALUE" lookup "$TABLE_ID" 2> /dev/null || true
+        ip_route del local 0.0.0.0/0 dev lo table "$TABLE_ID" 2> /dev/null || true
+
+        if ! ip_rule add fwmark "$MARK_VALUE" table "$TABLE_ID" pref "$TABLE_ID"; then
+            log Error "添加 IPv4 路由规则失败"
+            return 1
+        fi
+
+        if ! ip_route add local 0.0.0.0/0 dev lo table "$TABLE_ID"; then
+            log Error "添加 IPv4 路由失败"
+            ip_rule del fwmark "$MARK_VALUE" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
+            return 1
+        fi
+
+        echo 1 > /proc/sys/net/ipv4/ip_forward
+    fi
+
+    log Info "IPv4 路由设置完成"
+}
+
+setup_routing6() {
+    log Info "正在设置 IPv6 路由规则"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip -6 rule add fwmark $MARK_VALUE6 lookup $TABLE_ID"
+        log Debug "[DRY-RUN] ip -6 route add local ::/0 dev lo table $TABLE_ID"
+        log Debug "[DRY-RUN] echo 1 > /proc/sys/net/ipv6/conf/all/forwarding"
+    else
+        ip6_rule del fwmark "$MARK_VALUE6" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
+        ip6_route del local ::/0 dev lo table "$TABLE_ID" 2> /dev/null || true
+
+        if ! ip6_rule add fwmark "$MARK_VALUE6" table "$TABLE_ID" pref "$TABLE_ID"; then
+            log Error "添加 IPv6 路由规则失败"
+            return 1
+        fi
+
+        if ! ip6_route add local ::/0 dev lo table "$TABLE_ID"; then
+            log Error "添加 IPv6 路由失败"
+            ip6_rule del fwmark "$MARK_VALUE6" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
+            return 1
+        fi
+
+        echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+    fi
+
+    log Info "IPv6 路由设置完成"
+}
+
+# 面向 IPv4/IPv6 的统一清理函数，带模式选择
+cleanup_chain() {
+    local family="$1"
+    local mode="$2"
+    local suffix=""
+    local cmd="iptables"
+
+    if [ "$family" = "6" ]; then
+        suffix="6"
+        cmd="ip6tables"
+    fi
+
+    # 设置日志用的模式名称
+    local mode_name="$mode"
+    if [ "$mode" = "tproxy" ]; then
+        mode_name="TPROXY"
+    else
+        mode_name="REDIRECT"
+    fi
+
+    log Info "正在清理 IPv${family} 的 $mode_name 链"
+
+    local table="mangle"
+    if [ "$mode" = "redirect" ]; then
+        table="nat"
+    fi
+
+    # 从主链移除规则
+    $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "BYPASS_IP$suffix" 2> /dev/null || true
+    $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "PROXY_INTERFACE$suffix" 2> /dev/null || true
+    $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "MAC_CHAIN$suffix" 2> /dev/null || true
+    $cmd -t "$table" -D "PROXY_PREROUTING$suffix" -j "DNS_HIJACK_PRE$suffix" 2> /dev/null || true
+
+    $cmd -t "$table" -D "PROXY_OUTPUT$suffix" -j "BYPASS_IP$suffix" 2> /dev/null || true
+    $cmd -t "$table" -D "PROXY_OUTPUT$suffix" -j "BYPASS_INTERFACE$suffix" 2> /dev/null || true
+    $cmd -t "$table" -D "PROXY_OUTPUT$suffix" -j "APP_CHAIN$suffix" 2> /dev/null || true
+    $cmd -t "$table" -D "PROXY_OUTPUT$suffix" -j "DNS_HIJACK_OUT$suffix" 2> /dev/null || true
+
+    if [ "$PROXY_TCP" -eq 1 ]; then
+        $cmd -t "$table" -D PREROUTING -p tcp -j "PROXY_PREROUTING$suffix" 2> /dev/null || true
+        $cmd -t "$table" -D OUTPUT -p tcp -j "PROXY_OUTPUT$suffix" 2> /dev/null || true
+    fi
+    if [ "$PROXY_UDP" -eq 1 ]; then
+        $cmd -t "$table" -D PREROUTING -p udp -j "PROXY_PREROUTING$suffix" 2> /dev/null || true
+        $cmd -t "$table" -D OUTPUT -p udp -j "PROXY_OUTPUT$suffix" 2> /dev/null || true
+    fi
+
+    # 根据协议族定义链
+    local chains=""
+    if [ "$family" = "6" ]; then
+        chains="PROXY_PREROUTING6 PROXY_OUTPUT6 BYPASS_IP6 BYPASS_INTERFACE6 PROXY_INTERFACE6 DNS_HIJACK_PRE6 DNS_HIJACK_OUT6 APP_CHAIN6 MAC_CHAIN6"
+    else
+        chains="PROXY_PREROUTING PROXY_OUTPUT BYPASS_IP BYPASS_INTERFACE PROXY_INTERFACE DNS_HIJACK_PRE DNS_HIJACK_OUT APP_CHAIN MAC_CHAIN"
+    fi
+
+    # 清空并删除链
+    for c in $chains; do
+        $cmd -t "$table" -F "$c" 2> /dev/null || true
+        $cmd -t "$table" -X "$c" 2> /dev/null || true
+    done
+
+    # 如适用，删除 DNS 规则
+    if [ "$mode" = "tproxy" ] && [ "$DNS_HIJACK_ENABLE" -eq 2 ]; then
+        $cmd -t nat -D PREROUTING -i "$MOBILE_INTERFACE" -j "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
+        $cmd -t nat -D PREROUTING -i "$WIFI_INTERFACE" -j "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
+        $cmd -t nat -D PREROUTING -i "$USB_INTERFACE" -j "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
+        $cmd -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT 2> /dev/null || true
+        $cmd -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "$CORE_USER" --gid-owner "$CORE_GROUP" -j ACCEPT 2> /dev/null || true
+        $cmd -t nat -D OUTPUT -j "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
+        $cmd -t nat -F "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
+        $cmd -t nat -X "NAT_DNS_HIJACK$suffix" 2> /dev/null || true
+    fi
+
+    log Info "IPv${family} 的 $mode_name 链清理完成"
+}
+
+cleanup_tproxy_chain4() {
+    cleanup_chain 4 "tproxy"
+}
+
+cleanup_tproxy_chain6() {
+    cleanup_chain 6 "tproxy"
+}
+
+cleanup_redirect_chain4() {
+    cleanup_chain 4 "redirect"
+}
+
+cleanup_redirect_chain6() {
+    if ! check_kernel_feature "IP6_NF_NAT" || ! check_kernel_feature "IP6_NF_TARGET_REDIRECT"; then
+        log Warn "IPv6：内核不支持 IPv6 NAT 或 REDIRECT，跳过 IPv6 清理"
+        return 0
+    fi
+    cleanup_chain 6 "redirect"
+}
+
+cleanup_routing4() {
+    log Info "正在清理 IPv4 路由规则"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip rule del fwmark $MARK_VALUE table $TABLE_ID pref $TABLE_ID"
+        log Debug "[DRY-RUN] ip route del local 0.0.0.0/0 dev lo table $TABLE_ID"
+        log Debug "[DRY-RUN] echo 0 > /proc/sys/net/ipv4/ip_forward"
+    else
+        ip_rule del fwmark "$MARK_VALUE" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
+        ip_route del local 0.0.0.0/0 dev lo table "$TABLE_ID" 2> /dev/null || true
+        echo 0 > /proc/sys/net/ipv4/ip_forward 2> /dev/null || true
+    fi
+
+    log Info "IPv4 路由清理完成"
+}
+
+cleanup_routing6() {
+    log Info "正在清理 IPv6 路由规则"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ip -6 rule del fwmark $MARK_VALUE6 table $TABLE_ID pref $TABLE_ID"
+        log Debug "[DRY-RUN] ip -6 route del local ::/0 dev lo table $TABLE_ID"
+        log Debug "[DRY-RUN] echo 0 > /proc/sys/net/ipv6/conf/all/forwarding"
+    else
+        ip6_rule del fwmark "$MARK_VALUE6" table "$TABLE_ID" pref "$TABLE_ID" 2> /dev/null || true
+        ip6_route del local ::/0 dev lo table "$TABLE_ID" 2> /dev/null || true
+        echo 0 > /proc/sys/net/ipv6/conf/all/forwarding 2> /dev/null || true
+    fi
+
+    log Info "IPv6 路由清理完成"
+}
+
+cleanup_ipset() {
+    if [ "$BYPASS_CN_IP" -eq 0 ]; then
+        log Debug "已禁用大陆 IP 旁路，跳过 ipset 清理"
+        return 0
+    fi
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log Debug "[DRY-RUN] ipset destroy cnip"
+        log Debug "[DRY-RUN] ipset destroy cnip6"
+    else
+        ipset destroy cnip 2> /dev/null || true
+        ipset destroy cnip6 2> /dev/null || true
+        log Info "已销毁 ipset 'cnip' 和 'cnip6'"
+    fi
+}
+
+detect_proxy_mode() {
+    USE_TPROXY=0
+    case "$PROXY_MODE" in
+        0)
+            if check_tproxy_support; then
+                USE_TPROXY=1
+                log Info "内核支持 TPROXY，使用 TPROXY 模式（自动）"
+            else
+                log Warn "内核不支持 TPROXY，回退为 REDIRECT 模式（自动）"
+            fi
+            ;;
+        1)
+            if check_tproxy_support; then
+                USE_TPROXY=1
+                log Info "使用 TPROXY 模式（配置强制）"
+            else
+                log Error "已强制 TPROXY 模式但内核不支持 TPROXY"
+                exit 1
+            fi
+            ;;
+        2)
+            log Info "使用 REDIRECT 模式（配置强制）"
+            ;;
+    esac
+}
+
+start_proxy() {
+    log Info "开始代理设置..."
+    if [ "$BYPASS_CN_IP" -eq 1 ]; then
+        if ! check_kernel_feature "IP_SET" || ! check_kernel_feature "NETFILTER_XT_SET"; then
+            log Error "内核不支持 ipset（CONFIG_IP_SET, CONFIG_NETFILTER_XT_SET），无法旁路大陆 IP"
+            BYPASS_CN_IP=0
+        else
+            download_cn_ip_list || log Warn "下载大陆 IP 列表失败，将继续但不使用"
+            if ! setup_cn_ipset; then
+                log Error "设置 ipset 失败，大陆旁路已禁用"
+                BYPASS_CN_IP=0
+            fi
+        fi
+    fi
+
+    if [ "$USE_TPROXY" -eq 1 ]; then
+        setup_tproxy_chain4
+        setup_routing4
+        if [ "$PROXY_IPV6" -eq 1 ]; then
+            setup_tproxy_chain6
+            setup_routing6
+        fi
+    else
+        setup_redirect_chain4
+        if [ "$PROXY_IPV6" -eq 1 ]; then
+            setup_redirect_chain6
+        fi
+    fi
+    log Info "代理设置完成"
+}
+
+stop_proxy() {
+    log Info "正在停止代理..."
+    if [ "$USE_TPROXY" -eq 1 ]; then
+        log Info "清理 TPROXY 链"
+        cleanup_tproxy_chain4
+        cleanup_routing4
+        if [ "$PROXY_IPV6" -eq 1 ]; then
+            cleanup_tproxy_chain6
+            cleanup_routing6
+        fi
+    else
+        log Info "清理 REDIRECT 链"
+        cleanup_redirect_chain4
+        if [ "$PROXY_IPV6" -eq 1 ]; then
+            cleanup_redirect_chain6
+        fi
+    fi
+    cleanup_ipset
+    log Info "代理已停止"
+}
+
+parse_args() {
+    MAIN_CMD=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            start | stop | restart)
+                if [ -n "$MAIN_CMD" ]; then
+                    log Error "指定了多个命令。"
+                    exit 1
+                fi
+                MAIN_CMD="$1"
+                ;;
+            --dry-run)
+                DRY_RUN=1
+                ;;
+            *)
+                log Error "用法: %s {start|stop|restart} [--dry-run]" "$(basename "$0")"
+                exit 1
+                ;;
+        esac
+        shift
+    done
+
+    if [ -z "$MAIN_CMD" ]; then
+        log Error "用法: %s {start|stop|restart} [--dry-run]" "$(basename "$0")"
+        exit 1
+    fi
+}
+
+main() {
+    if ! validate_config; then
+        log Error "配置校验失败"
+        exit 1
+    fi
+
+    detect_proxy_mode
+
+    case "$1" in
+        start)
+            start_proxy
+            ;;
+        stop)
+            stop_proxy
+            ;;
+        restart)
+            log Info "正在重启代理..."
+            stop_proxy
+            sleep 2
+            start_proxy
+            log Info "代理已重启"
+            ;;
+        *)
+            log Error "用法: %s {start|stop|restart} [--dry-run]\n" "$(basename "$0")"
+            exit 1
+            ;;
+    esac
+}
+
+check_root
+
+check_dependencies
+
+load_config
+
+parse_args "$@"
+
+main "$MAIN_CMD"

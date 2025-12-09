@@ -23,7 +23,7 @@ intranet6=(::/128 ::1/128 ::ffff:0:0/96 100::/64 64:ff9b::/96 2001::/32 2001:10:
 ipv6="disable"
 proxy_method="TPROXY"
 # REDIRECT: TCP only / TPROXY: TCP + UDP / MIXED: REDIRECT TCP + TUN UDP
-proxy_mode="core"
+proxy_mode="blacklist"
 # blacklist / whitelist / core
 user_packages_list=()
 # Android User:Package Name, For example:
