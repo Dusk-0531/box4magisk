@@ -1,5 +1,9 @@
 ## box4 更新日志
 
+### v6.0
+
+- 替换 box.tproxy 脚本，使用 https://github.com/CHIZI-0618/AndroidTProxyShell/blob/main/tproxy.sh
+
 ### v5.4
 
 - 修正命令执行,确保所有按钮都是正常的
