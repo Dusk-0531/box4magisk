@@ -1,5 +1,9 @@
 ## box4 更新日志
 
+### v6.1
+
+- 移除自动保存/data/adb/box/mihomo/每次启动的日志
+
 ### v6.0
 
 - 替换 box.tproxy 脚本，使用 https://github.com/CHIZI-0618/AndroidTProxyShell/blob/main/tproxy.sh
