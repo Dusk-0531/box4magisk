@@ -2,6 +2,12 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      changelog:
+        description: '更新日志 (Release Notes)'
+        required: false
+        type: string
+        default: ''
   push:
     tags:
       - 'v*'
@@ -126,4 +132,5 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: box4_v*.zip
-          generate_release_notes: true
+          body: ${{ inputs.changelog }}
+          generate_release_notes: ${{ inputs.changelog == '' }}

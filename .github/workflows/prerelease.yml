@@ -2,6 +2,12 @@ name: prerelease
 
 on:
   workflow_dispatch:
+    inputs:
+      changelog:
+        description: '更新日志 (Release Notes)'
+        required: false
+        type: string
+        default: ''
   push:
     paths-ignore:
       - ".github"
@@ -145,4 +151,5 @@ jobs:
           tag_name: Prerelease
           files: box4_v*.zip
           prerelease: true
-          generate_release_notes: true
+          body: ${{ inputs.changelog }}
+          generate_release_notes: ${{ inputs.changelog == '' }}
