@@ -49,7 +49,7 @@ After installing the module, please download the core files for your device's ar
 
 - If you want to only proxy certain applications (APPs), open the `/data/adb/box/scripts/box.config` file, change the `proxy_mode` value to `whitelist`, and add elements to the `user_packages_list` array. The format for each element is `android_user:package_name`, separated by spaces. This will **only proxy** the specified apps. For example, `user_packages_list=("0:com.termux" "10:org.telegram.messenger")` proxies Termux for user 0 and Telegram for user 10.
 
-- When the `proxy_mode` value is `core`, the transparent proxy will not work, and **only** the core will be started, which can be used to support native TUN inbound of some cores (sing-box, clash, mihomo).
+- When the `proxy_mode` value is `core`, the TPROXY transparent proxy will not be started, and **only** the core will be started, which can be used to support native TUN inbound of some cores (sing-box, clash, mihomo). In this mode, please ensure that the TUN inbound is properly configured in the core configuration file.
 
 ### Advanced Usage
 

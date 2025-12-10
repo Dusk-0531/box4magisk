@@ -52,7 +52,7 @@
 
 - 如果您希望只对特定的应用程序（APP）进行透明代理，那么请打开 `/data/adb/box/scripts/box.config` 文件，修改 `proxy_mode` 的值为 `whitelist`，在 `user_packages_list` 数组中添加元素，数组元素格式为`安卓用户:应用包名`，元素之间用空格隔开。即可**仅代理**相应安卓用户应用。例如 `user_packages_list=("0:com.termux" "10:org.telegram.messenger")` 代表代理用户 0 的 Termux 和用户 10 的 Telegram
 
-- `proxy_mode` 的值为 `core` 时，透明代理不会工作，**仅仅**启动相应核心，这可以用来支持部分核心（sing-box、clash、mihomo）原生的 TUN 入站
+- `proxy_mode` 的值为 `core` 时，TPROXY 透明代理不会启动，**仅仅**启动相应核心，这可以用来支持部分核心（sing-box、clash、mihomo）原生的 TUN 入站。在此模式下，请确保核心配置文件中已正确配置 TUN 入站
 
 ### 高级用法
 

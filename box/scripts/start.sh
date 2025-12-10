@@ -33,6 +33,10 @@ if [ ! -f ${box_path}/manual ] && [ ! -f ${module_dir}/disable ] ; then
   mv ${run_path}/run.log ${run_path}/run.log.bak
   mv ${run_path}/run_error.log ${run_path}/run_error.log.bak
 
-  ${scripts_dir}/box.service start >> ${run_path}/run.log 2>> ${run_path}/run_error.log && \
-  ${scripts_dir}/box.tproxy start >> ${run_path}/run.log 2>> ${run_path}/run_error.log
+  ${scripts_dir}/box.service start >> ${run_path}/run.log 2>> ${run_path}/run_error.log
+  
+  # 只有当 proxy_mode 不是 "core" 时才启动 tproxy
+  if [ "${proxy_mode}" != "core" ] ; then
+    ${scripts_dir}/box.tproxy start >> ${run_path}/run.log 2>> ${run_path}/run_error.log
+  fi
 fi
