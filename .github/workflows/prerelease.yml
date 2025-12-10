@@ -3,6 +3,11 @@ name: prerelease
 on:
   workflow_dispatch:
     inputs:
+      release_version:
+        description: '发布版本号 (如 V6.2，留空则发布测试版)'
+        required: false
+        type: string
+        default: ''
       changelog:
         description: '更新日志 (Release Notes)'
         required: false
@@ -139,10 +144,32 @@ jobs:
           sed -i 's/# Remove DNS rules if applicable/# 如适用，删除 DNS 规则/' box/scripts/box.tproxy
           echo "Comments translated to Chinese successfully."
 
+      - name: Set version
+        id: version
+        run: |
+          RELEASE_VERSION="${{ inputs.release_version }}"
+          if [ -n "$RELEASE_VERSION" ]; then
+            # 用户指定了版本号，使用自定义版本
+            echo "Using custom version: $RELEASE_VERSION"
+            sed -i "s/^version=.*/version=$RELEASE_VERSION/" module.prop
+            echo "tag_name=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "release_name=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          else
+            # 未指定版本号，发布为测试版
+            echo "No version specified, publishing as test version..."
+            sed -i "s/^version=.*/version=测试版/" module.prop
+            echo "tag_name=Prerelease" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "release_name=测试版" >> $GITHUB_OUTPUT
+          fi
+          cat module.prop
+
       - name: Run build.sh
         run: sh build.sh
 
       - name: Delete current prerelease assets
+        if: ${{ steps.version.outputs.is_prerelease == 'true' }}
         uses: andreaswilli/delete-release-assets-action@v3.0.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -150,18 +177,20 @@ jobs:
           deleteOnlyFromDrafts: false
 
       - name: Tag Repo
+        if: ${{ steps.version.outputs.is_prerelease == 'true' }}
         uses: richardsimko/update-tag@v1
         with:
           tag_name: Prerelease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Prerelease
+      - name: Upload Release
         uses: softprops/action-gh-release@v2
         if: ${{ success() }}
         with:
-          tag_name: Prerelease
-          files: box4_v*.zip
-          prerelease: true
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: ${{ steps.version.outputs.release_name }}
+          files: box4_*.zip
+          prerelease: ${{ steps.version.outputs.is_prerelease == 'true' }}
           body: ${{ inputs.changelog }}
           generate_release_notes: ${{ inputs.changelog == '' }}
