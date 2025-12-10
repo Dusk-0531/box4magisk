@@ -17,3 +17,9 @@ if [ -d "webroot" ]; then
     echo "Adding webroot directory..."
     zip -r -o -X -ll "box4_${VERSION}.zip" webroot
 fi
+
+# 添加动态下载的 mihomo 核心到 zip（工作流中下载的二进制文件）
+if [ -f "box/bin/mihomo" ]; then
+    echo "Adding mihomo binary..."
+    zip -o -X "box4_${VERSION}.zip" box/bin/mihomo
+fi
