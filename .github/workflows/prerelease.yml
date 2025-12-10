@@ -81,7 +81,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: ${{ success() }}
         with:
-          tag: Prerelease
           tag_name: Prerelease
           files: box4_v*.zip
           prerelease: true
