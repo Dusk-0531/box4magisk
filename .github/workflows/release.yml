@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ''
+      mihomo_version:
+        description: 'mihomo 版本号 (留空使用最新 Prerelease-Alpha)'
+        required: false
+        type: string
+        default: ''
   push:
     tags:
       - 'v*'
@@ -33,10 +38,17 @@ jobs:
 
       - name: Download mihomo ARMV8 core
         run: |
-          echo "Downloading mihomo ARMV8 core from vernesong/mihomo..."
-          MIHOMO_ASSET_NAME=$(curl -sSL "https://api.github.com/repos/vernesong/mihomo/releases/tags/Prerelease-Alpha" | jq -r '.assets[] | select(.name | test("mihomo-android-arm64-v8-alpha-smart.*\\.gz$")) | .name' | head -1)
-          if [ -n "$MIHOMO_ASSET_NAME" ] && echo "$MIHOMO_ASSET_NAME" | grep -qE '^mihomo-android-arm64-v8-alpha-smart[a-zA-Z0-9._-]+\.gz$'; then
-            MIHOMO_DOWNLOAD_URL="https://github.com/vernesong/mihomo/releases/download/Prerelease-Alpha/${MIHOMO_ASSET_NAME}"
+          MIHOMO_VERSION="${{ inputs.mihomo_version }}"
+          if [ -z "$MIHOMO_VERSION" ]; then
+            MIHOMO_VERSION="Prerelease-Alpha"
+            echo "No version specified, using latest $MIHOMO_VERSION..."
+          else
+            echo "Using specified version: $MIHOMO_VERSION..."
+          fi
+          echo "Downloading mihomo ARMV8 core from vernesong/mihomo (version: $MIHOMO_VERSION)..."
+          MIHOMO_ASSET_NAME=$(curl -sSL "https://api.github.com/repos/vernesong/mihomo/releases/tags/${MIHOMO_VERSION}" | jq -r '.assets[] | select(.name | test("^mihomo-android-arm64-v8[a-zA-Z0-9._-]*\\.gz$")) | .name' | head -1)
+          if [ -n "$MIHOMO_ASSET_NAME" ] && echo "$MIHOMO_ASSET_NAME" | grep -qE '^mihomo-android-arm64-v8[a-zA-Z0-9._-]*\.gz$'; then
+            MIHOMO_DOWNLOAD_URL="https://github.com/vernesong/mihomo/releases/download/${MIHOMO_VERSION}/${MIHOMO_ASSET_NAME}"
             echo "Downloading $MIHOMO_ASSET_NAME..."
             curl -sSL -o mihomo.gz "$MIHOMO_DOWNLOAD_URL"
             gunzip -c mihomo.gz > box/bin/mihomo
@@ -44,7 +56,7 @@ jobs:
             rm -f mihomo.gz
             echo "mihomo ARMV8 core downloaded and installed successfully."
           else
-            echo "Failed to find valid mihomo ARMV8 asset."
+            echo "Failed to find valid mihomo ARMV8 asset for version: $MIHOMO_VERSION"
             exit 1
           fi
 
