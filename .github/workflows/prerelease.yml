@@ -49,16 +49,77 @@ jobs:
         run: |
           echo "Downloading tproxy.sh from CHIZI-0618/AndroidTProxyShell..."
           curl -sSL -o box/scripts/box.tproxy "https://raw.githubusercontent.com/CHIZI-0618/AndroidTProxyShell/main/tproxy.sh"
-          # 修改默认配置：开启 IPv6 和 CN 旁路
+          # 修改默认配置：开启 IPv6
           sed -i 's/readonly DEFAULT_PROXY_IPV6=0/readonly DEFAULT_PROXY_IPV6=1/' box/scripts/box.tproxy
-          sed -i 's/readonly DEFAULT_BYPASS_CN_IP=0/readonly DEFAULT_BYPASS_CN_IP=1/' box/scripts/box.tproxy
           # 验证修改是否成功
-          if grep -q "readonly DEFAULT_PROXY_IPV6=1" box/scripts/box.tproxy && grep -q "readonly DEFAULT_BYPASS_CN_IP=1" box/scripts/box.tproxy; then
+          if grep -q "readonly DEFAULT_PROXY_IPV6=1" box/scripts/box.tproxy; then
             chmod +x box/scripts/box.tproxy
-            echo "box.tproxy updated successfully with IPv6 and CN bypass enabled by default."
+            echo "box.tproxy updated successfully with IPv6 enabled by default."
           else
             echo "Warning: Failed to verify sed replacements, using original values."
           fi
+
+      - name: Translate box.tproxy comments to Chinese
+        run: |
+          echo "Translating comments to Chinese..."
+          # 配置部分注释翻译
+          sed -i 's/# Configuration (modify as needed)/# 配置（可按需修改）/' box/scripts/box.tproxy
+          sed -i 's/# Proxy core configuration/# 代理核心配置/' box/scripts/box.tproxy
+          sed -i 's/# Proxy running user and group/# 代理运行的用户和组/' box/scripts/box.tproxy
+          sed -i 's/# Proxy traffic mark/# 代理流量标记/' box/scripts/box.tproxy
+          sed -i 's/# Proxy ports (transparent proxy listening ports)/# 代理端口（透明代理监听端口）/' box/scripts/box.tproxy
+          sed -i 's/# Proxy mode: 0=auto (check TPROXY support), 1=force TPROXY, 2=force REDIRECT/# 代理模式：0=自动（检测 TPROXY 支持），1=强制 TPROXY，2=强制 REDIRECT/' box/scripts/box.tproxy
+          sed -i 's/# Proxy mode: 0=auto, 1=force TPROXY, 2=force REDIRECT/# 代理模式：0=自动，1=强制 TPROXY，2=强制 REDIRECT/' box/scripts/box.tproxy
+          sed -i 's/# DNS configuration/# DNS 配置/' box/scripts/box.tproxy
+          sed -i 's/# DNS hijack method (0: disabled, 1: tproxy, 2: redirect)/# DNS 劫持方式（0：禁用，1：tproxy，2：redirect）/' box/scripts/box.tproxy
+          sed -i 's/# DNS listening port/# DNS 监听端口/' box/scripts/box.tproxy
+          # 网口定义翻译
+          sed -i 's/# Interface definitions/# 网口定义/' box/scripts/box.tproxy
+          sed -i 's/# Mobile data interface/# 移动数据接口/' box/scripts/box.tproxy
+          sed -i 's/# WiFi interface/# WiFi 接口/' box/scripts/box.tproxy
+          sed -i 's/# Hotspot interface/# 热点接口/' box/scripts/box.tproxy
+          sed -i 's/# USB tethering interface/# USB 共享网接口/' box/scripts/box.tproxy
+          # 代理开关翻译
+          sed -i 's/# Proxy switches/# 代理开关/' box/scripts/box.tproxy
+          sed -i 's/# Mark values/# 标记值/' box/scripts/box.tproxy
+          sed -i 's/# Routing table ID/# 路由表 ID/' box/scripts/box.tproxy
+          # 分应用代理翻译
+          sed -i 's/# Per-app proxy (use space to separate package names, supports user:package format)/# 分应用代理（用空格分隔包名，支持 user:package 格式）/' box/scripts/box.tproxy
+          sed -i 's/# Per-app proxy/# 分应用代理/' box/scripts/box.tproxy
+          sed -i "s/# Example: \"com.example.app com.other\"/# 例： \"com.example.app com.other\"/" box/scripts/box.tproxy
+          sed -i "s/# Example: \"com.android.shell\"/# 例： \"com.android.shell\"/" box/scripts/box.tproxy
+          sed -i "s/# \"blacklist\" or \"whitelist\"/# \"blacklist\" 或 \"whitelist\"/" box/scripts/box.tproxy
+          # 中国大陆 IP 旁路配置翻译
+          sed -i 's/# CN IP bypass configuration/# 中国大陆 IP 旁路配置/' box/scripts/box.tproxy
+          sed -i 's/# CN IP bypass/# 中国大陆 IP 旁路/' box/scripts/box.tproxy
+          sed -i 's/# CN IP list file paths/# 中国大陆 IP 列表文件路径/' box/scripts/box.tproxy
+          sed -i 's/# CN IP source URLs/# 中国大陆 IP 源地址/' box/scripts/box.tproxy
+          # MAC 地址配置翻译
+          sed -i 's/# MAC address blacklist\/whitelist configuration (hotspot mode)/# MAC 地址黑\/白名单配置（热点模式）/' box/scripts/box.tproxy
+          sed -i 's/# MAC address blacklist\/whitelist (use space to separate MAC addresses)/# MAC 地址黑\/白名单（用空格分隔 MAC 地址）/' box/scripts/box.tproxy
+          sed -i 's/# MAC address filtering/# MAC 地址过滤/' box/scripts/box.tproxy
+          sed -i "s/# Example: \"AA:BB:CC:DD:EE:FF 11:22:33:44:55:66\"/# 例： \"AA:BB:CC:DD:EE:FF 11:22:33:44:55:66\"/" box/scripts/box.tproxy
+          sed -i "s/# Example: \"FF:EE:DD:CC:BB:AA\"/# 例： \"FF:EE:DD:CC:BB:AA\"/" box/scripts/box.tproxy
+          # 演练模式翻译
+          sed -i 's/# Dry-run mode (disabled by default)/# 演练模式（默认关闭）/' box/scripts/box.tproxy
+          # 其他函数和日志相关翻译
+          sed -i 's/# Unified command wrapper functions/# 统一的命令封装函数/' box/scripts/box.tproxy
+          sed -i "s/# Re-download if file doesn't exist or is older than 7 days/# 若文件不存在或超过 7 天则重新下载/" box/scripts/box.tproxy
+          sed -i 's/# Unified setup function for both IPv4 and IPv6 with mode selection/# 面向 IPv4\/IPv6 的统一设置函数，带模式选择/' box/scripts/box.tproxy
+          sed -i 's/# tproxy or redirect/# tproxy 或 redirect/' box/scripts/box.tproxy
+          sed -i 's/# Set mode name for logging/# 设置日志用的模式名称/' box/scripts/box.tproxy
+          sed -i 's/# Define chains based on family/# 根据协议族定义链/' box/scripts/box.tproxy
+          sed -i 's/# Create chains/# 创建链/' box/scripts/box.tproxy
+          sed -i 's/# Add private IP ranges based on family/# 按协议族添加私网地址段/' box/scripts/box.tproxy
+          sed -i 's/# Add rules to main chains/# 加入主链路规则/' box/scripts/box.tproxy
+          sed -i 's/# Handle DNS from interfaces in PREROUTING chain (DNS_HIJACK_PRE)/# 在 PREROUTING 链处理来自接口的 DNS（DNS_HIJACK_PRE）/' box/scripts/box.tproxy
+          sed -i 's/# Handle local DNS hijacking in OUTPUT chain (DNS_HIJACK_OUT)/# 在 OUTPUT 链处理本地 DNS 劫持（DNS_HIJACK_OUT）/' box/scripts/box.tproxy
+          sed -i 's/# Handle DNS using REDIRECT method/# 使用 REDIRECT 方式处理 DNS/' box/scripts/box.tproxy
+          sed -i 's/# Unified cleanup function for both IPv4 and IPv6 with mode selection/# 面向 IPv4\/IPv6 的统一清理函数，带模式选择/' box/scripts/box.tproxy
+          sed -i 's/# Remove rules from main chains/# 从主链移除规则/' box/scripts/box.tproxy
+          sed -i 's/# Clean up chains/# 清空并删除链/' box/scripts/box.tproxy
+          sed -i 's/# Remove DNS rules if applicable/# 如适用，删除 DNS 规则/' box/scripts/box.tproxy
+          echo "Comments translated to Chinese successfully."
 
       - name: Run build.sh
         run: sh build.sh
