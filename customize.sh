@@ -4,11 +4,11 @@ SKIPUNZIP=1
 ASH_STANDALONE=1
 
 if [ "$BOOTMODE" ! = true ] ; then
-  abort "Error: Please install in Magisk Manager, KernelSU Manager or APatch"
+  abort "错误：请在 Magisk Manager、KernelSU Manager 或 APatch 中安装"
 fi
 
 if [ "$KSU" = true ] && [ "$KSU_VER_CODE" -lt 10670 ] ; then
-  abort "Error: Please update your KernelSU"
+  abort "错误：请更新您的 KernelSU"
 fi
 
 if [ "$KSU" = true ] && [ "$KSU_VER_CODE" -lt 10683 ] ; then
@@ -27,14 +27,14 @@ if [ -d /data/adb/box ] ; then
   # 如果不存在 subs.txt 就创建一个
   touch /data/adb/box/scripts/subs.txt
   cp /data/adb/box/scripts/box.config /data/adb/box/scripts/box.config.bak
-  ui_print "- User configuration box.config has been backed up to box.config.bak"
+  ui_print "- 用户配置 box.config 已备份到 box.config.bak"
 
   cat /data/adb/box/scripts/box.config >> $MODPATH/box/scripts/box.config
   cp -f $MODPATH/box/scripts/* /data/adb/box/scripts/
-  ui_print "- User configuration box.config has been"
-  ui_print "- attached to the module box.config,"
-  ui_print "- please re-edit box.config"
-  ui_print "- after the update is complete."
+  ui_print "- 用户配置 box.config 已"
+  ui_print "- 附加到模块 box.config，"
+  ui_print "- 请在更新完成后"
+  ui_print "- 重新编辑 box.config。"
 
   awk '!x[$0]++' $MODPATH/box/scripts/box.config > /data/adb/box/scripts/box.config
 
@@ -65,7 +65,7 @@ set_perm_recursive /data/adb/box/bin/ 0 0 0755 0700
 
 set_perm $service_dir/box4_service.sh 0 0 0700
 
-# fix "set_perm_recursive /data/adb/box/scripts" not working on some phones.
+# 修复 "set_perm_recursive /data/adb/box/scripts" 在某些手机上不生效的问题
 chmod ugo+x /data/adb/box/scripts/*
 
 for pid in $(pidof inotifyd) ; do
