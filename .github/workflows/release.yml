@@ -25,6 +25,38 @@ jobs:
       - name: Build webui
         run: bun run build
 
+      - name: Download mihomo ARMV8 core
+        run: |
+          echo "Downloading mihomo ARMV8 core from vernesong/mihomo..."
+          MIHOMO_ASSET_NAME=$(curl -sSL "https://api.github.com/repos/vernesong/mihomo/releases/tags/Prerelease-Alpha" | jq -r '.assets[] | select(.name | test("mihomo-android-arm64-v8-alpha-smart.*\\.gz$")) | .name' | head -1)
+          if [ -n "$MIHOMO_ASSET_NAME" ] && echo "$MIHOMO_ASSET_NAME" | grep -qE '^mihomo-android-arm64-v8-alpha-smart[a-zA-Z0-9._-]+\.gz$'; then
+            MIHOMO_DOWNLOAD_URL="https://github.com/vernesong/mihomo/releases/download/Prerelease-Alpha/${MIHOMO_ASSET_NAME}"
+            echo "Downloading $MIHOMO_ASSET_NAME..."
+            curl -sSL -o mihomo.gz "$MIHOMO_DOWNLOAD_URL"
+            gunzip -c mihomo.gz > box/bin/mihomo
+            chmod +x box/bin/mihomo
+            rm -f mihomo.gz
+            echo "mihomo ARMV8 core downloaded and installed successfully."
+          else
+            echo "Failed to find valid mihomo ARMV8 asset."
+            exit 1
+          fi
+
+      - name: Download and update box.tproxy
+        run: |
+          echo "Downloading tproxy.sh from CHIZI-0618/AndroidTProxyShell..."
+          curl -sSL -o box/scripts/box.tproxy "https://raw.githubusercontent.com/CHIZI-0618/AndroidTProxyShell/main/tproxy.sh"
+          # 修改默认配置：开启 IPv6 和 CN 旁路
+          sed -i 's/readonly DEFAULT_PROXY_IPV6=0/readonly DEFAULT_PROXY_IPV6=1/' box/scripts/box.tproxy
+          sed -i 's/readonly DEFAULT_BYPASS_CN_IP=0/readonly DEFAULT_BYPASS_CN_IP=1/' box/scripts/box.tproxy
+          # 验证修改是否成功
+          if grep -q "readonly DEFAULT_PROXY_IPV6=1" box/scripts/box.tproxy && grep -q "readonly DEFAULT_BYPASS_CN_IP=1" box/scripts/box.tproxy; then
+            chmod +x box/scripts/box.tproxy
+            echo "box.tproxy updated successfully with IPv6 and CN bypass enabled by default."
+          else
+            echo "Warning: Failed to verify sed replacements, using original values."
+          fi
+
       - name: Run build.sh
         run: sh build.sh
 

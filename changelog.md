@@ -1,5 +1,12 @@
 ## box4 更新日志
 
+### v6.2beta
+
+- 打包脚本自动下载 mihomo ARMV8 核心
+- 打包脚本自动下载并更新 box.tproxy 脚本
+- 默认开启 IPv6 代理支持
+- 默认开启中国大陆 IP 旁路功能
+
 ### v6.1
 
 - 移除自动保存/data/adb/box/mihomo/每次启动的日志
