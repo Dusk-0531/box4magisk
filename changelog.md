@@ -1,5 +1,9 @@
 ## box4 更新日志
 
+### v6.2beta
+
+- 添加 mihomo 内核 (ARMV8 架构)
+
 ### v6.1
 
 - 移除自动保存/data/adb/box/mihomo/每次启动的日志
