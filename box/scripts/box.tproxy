@@ -958,8 +958,8 @@ setup_dns_hijack() {
     case "$mode" in
         tproxy)
             # 在 PREROUTING 链处理来自接口的 DNS（DNS_HIJACK_PRE）
-            $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p tcp --dport 53 -j TPROXY --on-port "$PROXY_TCP_PORT" --tproxy-mark "$mark"
-            $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p udp --dport 53 -j TPROXY --on-port "$PROXY_UDP_PORT" --tproxy-mark "$mark"
+            $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p tcp --dport 53 -j TPROXY --on-port "$DNS_PORT" --tproxy-mark "$mark"
+            $cmd -t mangle -A "DNS_HIJACK_PRE$suffix" -p udp --dport 53 -j TPROXY --on-port "$DNS_PORT" --tproxy-mark "$mark"
             # 在 OUTPUT 链处理本地 DNS 劫持（DNS_HIJACK_OUT）
             $cmd -t mangle -A "DNS_HIJACK_OUT$suffix" -p tcp --dport 53 -j MARK --set-mark "$mark"
             $cmd -t mangle -A "DNS_HIJACK_OUT$suffix" -p udp --dport 53 -j MARK --set-mark "$mark"
