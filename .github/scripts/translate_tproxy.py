@@ -3,6 +3,7 @@ import re
 import sys
 from pathlib import Path
 
+# 翻译表：保留 shell 变量占位符（如 $mode_name、${family}），供脚本运行时插值
 TRANSLATIONS = {
     "$mode_name chains for IPv${family} cleanup completed": "$mode_name 链（IPv${family}）清理完成",
     "$mode_name chains for IPv${family} setup completed": "$mode_name 链（IPv${family}）设置完成",
@@ -256,6 +257,7 @@ COMMENT_TRANSLATIONS = {
     "Remove DNS rules if applicable": "如适用，删除 DNS 规则",
 }
 
+# 日志匹配：假定日志消息内不包含转义双引号
 LOG_PATTERN = re.compile(r"log\s+\w+\s+\"(.*?)\"")
 COMMENT_PATTERN = re.compile(r"^(\s*#)\s?(.*)$")
 
@@ -282,7 +284,8 @@ def ensure_ipv6_enabled(text: str) -> str:
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: translate_tproxy.py <path>")
+        script_name = Path(sys.argv[0]).name
+        print(f"Usage: {script_name} <path>")
         sys.exit(1)
     target = Path(sys.argv[1])
     content = target.read_text()
