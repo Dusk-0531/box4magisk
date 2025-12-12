@@ -256,8 +256,8 @@ COMMENT_TRANSLATIONS = {
     "Remove DNS rules if applicable": "如适用，删除 DNS 规则",
 }
 
-LOG_PATTERN = re.compile(r"log\\s+\\w+\\s+\"(.*?)\"")
-COMMENT_PATTERN = re.compile(r"^(\\s*#)\\s?(.*)$")
+LOG_PATTERN = re.compile(r"log\s+\w+\s+\"(.*?)\"")
+COMMENT_PATTERN = re.compile(r"^(\s*#)\s?(.*)$")
 
 
 def translate_line(line: str) -> str:
@@ -277,7 +277,7 @@ def translate_line(line: str) -> str:
 
 
 def ensure_ipv6_enabled(text: str) -> str:
-    return re.sub(r"readonly\\s+DEFAULT_PROXY_IPV6=0", "readonly DEFAULT_PROXY_IPV6=1", text)
+    return re.sub(r"readonly\s+DEFAULT_PROXY_IPV6=0", "readonly DEFAULT_PROXY_IPV6=1", text)
 
 
 def main():
