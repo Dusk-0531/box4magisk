@@ -12,6 +12,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Fetch and update box.tproxy
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/CHIZI-0618/AndroidTProxyShell/main/tproxy.sh" -o /tmp/tproxy.sh
+          sed -e 's/\bstart_proxy\b/enable_proxy/g' \
+              -e 's/\bstop_proxy\b/disable_proxy/g' \
+              -e 's/start | stop | restart/enable | disable | restart/g' \
+              -e 's/{start|stop|restart}/{enable|disable|restart}/g' \
+              -e 's/^\(\s*\)start)/\1enable)/g' \
+              -e 's/^\(\s*\)stop)/\1disable)/g' \
+              /tmp/tproxy.sh > box/scripts/box.tproxy
+          chmod +x box/scripts/box.tproxy
+
       - name: Run build.sh
         run: sh build.sh
 
